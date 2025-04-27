@@ -1,21 +1,37 @@
 /*
 Copyright © 2025 Mohamed Aashir S <s.mohamedaashir@gmail.com>
-
 */
 package cmd
 
 import (
 	"fmt"
 	"os"
-	"strings"
 	"regexp"
+	"strings"
+
 	"github.com/spf13/cobra"
 )
 
 // convertCmd represents the convert command
 var convertCmd = &cobra.Command{
 	Use:   "convert",
-	Short: "Convert a shell.nix to flake.nix, migrating packages if any",
+	Short: "Convert shell.nix to flake.nix",
+	Long: `Convert your shell.nix configuration to the modern flake.nix format.
+
+This command will:
+1. Read your existing shell.nix configuration
+2. Extract all configured packages and settings
+3. Create a new flake.nix with equivalent functionality
+4. Preserve all your package dependencies
+
+The conversion process maintains all your existing packages while
+upgrading to the newer, more reproducible flake-based workflow.
+
+Example:
+  nsm convert    # Convert shell.nix to flake.nix
+
+Note: Your original shell.nix file will be preserved as a backup.
+Use 'nsm run' after conversion to enter the new flake-based shell.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		// Check if shell.nix exists
 		if _, err := os.Stat("shell.nix"); os.IsNotExist(err) {

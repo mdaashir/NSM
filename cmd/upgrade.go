@@ -1,6 +1,5 @@
 /*
 Copyright © 2025 Mohamed Aashir S <s.mohamedaashir@gmail.com>
-
 */
 package cmd
 
@@ -15,6 +14,19 @@ import (
 var upgradeCmd = &cobra.Command{
 	Use:   "upgrade",
 	Short: "Update nixpkgs channel",
+	Long: `Update your Nixpkgs channel to the latest version.
+
+This command will:
+- Update your configured Nixpkgs channel
+- Fetch the latest package definitions
+- Ensure access to the newest packages
+- Maintain channel consistency
+
+Example:
+  nsm upgrade    # Update nixpkgs to latest version
+
+Note: After upgrading, you may need to rebuild your
+environment by running 'nsm run' again.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Println("🔄 Updating nixpkgs channel...")
 

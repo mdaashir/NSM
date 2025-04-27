@@ -1,6 +1,5 @@
 /*
 Copyright © 2025 Mohamed Aashir S <s.mohamedaashir@gmail.com>
-
 */
 package cmd
 
@@ -14,9 +13,21 @@ import (
 
 // addCmd represents the add command
 var addCmd = &cobra.Command{
-	Use:   "add [packages]",
+	Use:   "add [packages...]",
 	Short: "Add one or more packages to the nix environment",
-	Args:  cobra.MinimumNArgs(1),
+	Long: `Add Nixpkgs packages to your development environment.
+
+Usage:
+  nsm add <package1> [package2...]  # Add one or more packages
+
+Examples:
+  nsm add gcc                     # Add single package
+  nsm add python3 nodejs git      # Add multiple packages
+  nsm add go rustc cargo         # Add development toolchains
+
+The packages will be added to your shell.nix configuration.
+Use 'nsm run' to enter the shell with the new packages.`,
+	Args: cobra.MinimumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		fileName := "shell.nix"
 

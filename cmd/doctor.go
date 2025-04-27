@@ -1,6 +1,5 @@
 /*
 Copyright © 2025 Mohamed Aashir S <s.mohamedaashir@gmail.com>
-
 */
 package cmd
 
@@ -15,6 +14,20 @@ import (
 var doctorCmd = &cobra.Command{
 	Use:   "doctor",
 	Short: "Diagnose the nix environment installation",
+	Long: `Perform a comprehensive health check of your Nix installation.
+
+This command checks:
+- Nix binary presence and version
+- Nixpkgs channel availability and status
+- Environment configuration
+- Common installation issues
+
+Examples:
+  nsm doctor    # Run all diagnostics
+
+The command will suggest fixes for any issues found.
+Use this command if you experience any problems with
+your Nix environment or NSM commands.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		// Check if nix is installed
 		_, err := exec.LookPath("nix")

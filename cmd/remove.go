@@ -14,9 +14,26 @@ import (
 
 // removeCmd represents the remove command
 var removeCmd = &cobra.Command{
-	Use:   "remove [packages]",
+	Use:   "remove [packages...]",
 	Short: "Remove one or more packages from the nix environment",
-	Args:  cobra.MinimumNArgs(1),
+	Long: `Remove packages from your Nix development environment.
+
+This command will:
+- Remove specified packages from shell.nix
+- Keep the environment consistent
+- Preserve other package configurations
+- Handle multiple package removal safely
+
+Usage:
+  nsm remove <package1> [package2...]  # Remove one or more packages
+
+Examples:
+  nsm remove gcc              # Remove single package
+  nsm remove python3 nodejs   # Remove multiple packages
+
+Note: This only removes packages from your configuration.
+Use 'nsm clean' to free up disk space afterward.`,
+	Args: cobra.MinimumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		fileName := "shell.nix"
 

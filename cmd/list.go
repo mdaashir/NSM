@@ -1,6 +1,5 @@
 /*
 Copyright © 2025 Mohamed Aashir s <s.mohamedaashir@gmail.com>
-
 */
 package cmd
 
@@ -17,6 +16,18 @@ import (
 var listCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List all packages in the nix environment",
+	Long: `Display all packages currently configured in your Nix environment.
+
+This command shows:
+- All packages defined in shell.nix
+- Their current status in the environment
+- Package names exactly as they appear in nixpkgs
+
+Example:
+  nsm list    # Show all configured packages
+
+The output is formatted for easy reading and shows packages
+in the same format they should be used with 'nsm add'.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		fileName := "shell.nix"
 

@@ -15,6 +15,20 @@ import (
 var runCmd = &cobra.Command{
 	Use:   "run",
 	Short: "Enter the nix-shell / nix develop environment",
+	Long: `Enter a Nix development environment based on your configuration.
+
+The command automatically detects and uses the appropriate method:
+- For shell.nix: Uses nix-shell
+- For flake.nix: Uses nix develop
+
+Examples:
+  nsm run            # Enter the development environment
+
+Inside the shell, you'll have access to all packages
+specified in your configuration file.
+
+Note: Make sure to run 'nsm init' first if you haven't
+created a configuration file yet.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		if _, err := os.Stat("shell.nix"); err == nil {
 			fmt.Println("🚀 Launching nix-shell...")

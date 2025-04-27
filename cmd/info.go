@@ -1,6 +1,5 @@
 /*
 Copyright © 2025 Mohamed Aashir S <s.mohamedaashir@gmail.com>
-
 */
 package cmd
 
@@ -15,6 +14,21 @@ import (
 var infoCmd = &cobra.Command{
 	Use:   "info",
 	Short: "Show system and nix information",
+	Long: `Display detailed information about your Nix installation and system.
+
+Information shown:
+- Nix version and installation type
+- System architecture and OS details
+- Active Nixpkgs channel
+- Environment status
+
+Example:
+  nsm info    # Show system information
+
+This information is useful for:
+- Troubleshooting issues
+- Reporting bugs
+- Checking compatibility`,
 	Run: func(cmd *cobra.Command, args []string) {
 		// Show Nix version
 		c := exec.Command("nix", "--version")

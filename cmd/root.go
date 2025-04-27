@@ -4,27 +4,34 @@ Copyright © 2025 Mohamed Aashir S <s.mohamedaashir@gmail.com>
 package cmd
 
 import (
-	"github.com/spf13/cobra"
 	"os"
+
+	"github.com/spf13/cobra"
 )
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
 	Use:   "NSM",
-	Short: "A brief description of your application",
-	Long: `A longer description that spans multiple lines and likely contains
-examples and usage of using your application. For example:
+	Short: "NSM (Nix Shell Manager) - A tool to manage Nix development environments",
+	Long: `NSM (Nix Shell Manager) is a powerful CLI tool that helps you manage Nix development environments.
 
-Cobra is a CLI library for Go that empowers applications.
-This application is a tool to generate the needed files
-to quickly create a Cobra application.`,
-	// Uncomment the following line if your bare application
-	// has an action associated with it:
-	// Run: func(cmd *cobra.Command, args []string) { },
+Features:
+- Initialize new Nix shell environments
+- Add/remove packages to your environment
+- List installed packages
+- Convert between shell.nix and flake.nix
+- Run Nix shells
+- Manage Nix channel versions
+- Clean up unused packages
+
+Example Usage:
+  nsm init              # Initialize a new shell.nix
+  nsm add gcc python3   # Add packages
+  nsm list              # List installed packages
+  nsm run              # Enter the Nix shell
+  nsm clean            # Clean up unused packages`,
 }
 
-// Execute adds all child commands to the root command and sets flags appropriately.
-// This is called by main.main(). It only needs to happen once to the rootCmd.
 func Execute() {
 	err := rootCmd.Execute()
 	if err != nil {
