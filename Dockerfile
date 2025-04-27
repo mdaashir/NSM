@@ -4,26 +4,11 @@ FROM golang:1.24.2-alpine AS builder
 # Install build dependencies
 RUN apk add --no-cache git make gcc musl-dev
 
-# Set working directory
+# Set up workspace
 WORKDIR /app
 
-# Set Go proxy for better dependency management
-ENV GOPROXY=https://proxy.golang.org,direct
-ENV GO111MODULE=on
-
-# Copy go mod files
-COPY go.mod go.sum ./
-
-# Download dependencies with retry logic
-RUN --mount=type=cache,target=/go/pkg/mod \
-    --mount=type=cache,target=/root/.cache/go-build \
-    go mod download
-
-# Copy source code
-COPY . .
-
-# Build the application with optimizations
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-w -s" -v -o /nsm .
+# Copy the pre-built binary
+COPY nsm /nsm
 
 # Final stage
 FROM alpine:latest
@@ -31,16 +16,12 @@ FROM alpine:latest
 # Create non-root user
 RUN adduser -D nsm
 
-# Install required packages for Nix
-RUN apk add --no-cache \
-    curl \
-    xz \
-    sudo \
-    shadow &&
-    mkdir -p /nix /etc/nix &&
-    chmod 755 /nix &&
-    echo "sandbox = false" >/etc/nix/nix.conf &&
-    echo "experimental-features = nix-command flakes" >>/etc/nix/nix.conf &&
+# Install required packages and set up Nix
+RUN apk add --no-cache curl xz sudo shadow && \
+    mkdir -p /nix /etc/nix && \
+    chmod 755 /nix && \
+    echo "sandbox = false" > /etc/nix/nix.conf && \
+    echo "experimental-features = nix-command flakes" >> /etc/nix/nix.conf && \
     chown -R nsm:nsm /nix /etc/nix
 
 # Copy binary from builder

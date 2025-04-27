@@ -8,7 +8,7 @@ builds:
       - windows
     goarch:
       - amd64
-    main: ./main.go
+    main: .
     binary: nsm
     ldflags:
       - -s -w
@@ -32,10 +32,14 @@ dockers:
     use: buildx
     build_flag_templates:
       - "--platform=linux/amd64"
+      - "--cache-from=type=gha"
+      - "--cache-to=type=gha,mode=max"
     dockerfile: Dockerfile
     extra_files:
       - go.mod
       - go.sum
+      - cmd/
+      - utils/
 
 # Release settings
 changelog:
