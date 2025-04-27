@@ -12,7 +12,7 @@ import (
 
 // BenchmarkPackageOperations benchmarks common package operations
 func BenchmarkPackageOperations(b *testing.B) {
-	config, cleanup := testutils.CreateTestConfig(b)
+	config, cleanup := testutils.CreateBenchConfig(b)
 	defer cleanup()
 
 	// Large shell.nix content for testing
@@ -75,7 +75,7 @@ pkgs.mkShell {
 
 // BenchmarkFileOperations benchmarks file-related operations
 func BenchmarkFileOperations(b *testing.B) {
-	dir := testutils.CreateTempDir(b)
+	dir := testutils.CreateBenchTempDir(b)
 	defer os.RemoveAll(dir)
 
 	// Create test files
@@ -106,7 +106,7 @@ func BenchmarkFileOperations(b *testing.B) {
 
 // BenchmarkConfigOperations benchmarks configuration operations
 func BenchmarkConfigOperations(b *testing.B) {
-	dir := testutils.CreateTempDir(b)
+	dir := testutils.CreateBenchTempDir(b)
 	defer os.RemoveAll(dir)
 
 	configPath := filepath.Join(dir, "config.yaml")
