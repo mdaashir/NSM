@@ -141,12 +141,14 @@ func ExtractFlakePackages(content string) []string {
 			inBuildInputs = true
 			continue
 		}
-		if inBuildInputs && strings.Contains(trimmed, "];") {
-			break
-		}
 		if inBuildInputs {
+			if strings.Contains(trimmed, "];") {
+				break
+			}
 			if trimmed != "" && !strings.HasPrefix(trimmed, "#") {
-				packages = append(packages, trimmed)
+				// Remove trailing characters like ";" or "," if present
+				cleaned := strings.TrimRight(trimmed, ";,")
+				packages = append(packages, cleaned)
 			}
 		}
 	}
