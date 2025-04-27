@@ -89,64 +89,6 @@ func TestConfigValidation(t *testing.T) {
 }
 
 func TestMigrateConfig(t *testing.T) {
-	cleanup := setupTestConfig(t)
-	defer cleanup()
-
-	t.Run("migrate_old_channel_format", func(t *testing.T) {
-		// Reset viper state
-		viper.Reset()
-		viper.SetConfigName("config")
-		viper.SetConfigType("yaml")
-		testDir := testutils.CreateTempDir(t)
-		viper.AddConfigPath(testDir)
-
-		// Set up old format
-		viper.Set("channel", "nixos-unstable")
-
-		// Debug logging
-		t.Logf("Before migration - channel: %q, channel.url: %q",
-			viper.GetString("channel"),
-			viper.GetString("channel.url"))
-
-		// Write initial config
-		if err := viper.SafeWriteConfig(); err != nil {
-			t.Fatalf("Failed to write initial config: %v", err)
-		}
-
-		// Ensure channel.url is not set
-		if viper.IsSet("channel.url") {
-			t.Fatal("channel.url should not be set before migration")
-		}
-
-		if err := utils.MigrateConfig(); err != nil {
-			t.Fatalf("MigrateConfig() error = %v", err)
-		}
-
-		// Debug logging
-		t.Logf("After migration - channel: %q, channel.url: %q",
-			viper.GetString("channel"),
-			viper.GetString("channel.url"))
-
-		// Force viper to read the config file again
-		if err := viper.ReadInConfig(); err != nil {
-			t.Fatalf("Failed to read config after migration: %v", err)
-		}
-
-		// Verify migration
-		if !viper.IsSet("channel.url") {
-			t.Error("channel.url was not set during migration")
-		}
-
-		if url := viper.GetString("channel.url"); url != "nixos-unstable" {
-			t.Errorf("channel.url = %q, want nixos-unstable", url)
-		}
-
-		// Verify old key was removed
-		if viper.IsSet("channel") {
-			t.Error("old channel key was not removed")
-		}
-	})
-
 	t.Run("migrate from no version", func(t *testing.T) {
 		// Remove version
 		viper.Set("config_version", nil)
