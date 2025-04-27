@@ -1,0 +1,52 @@
+name: Sign Artifacts
+
+on:
+  workflow_run:
+    workflows: ['Release']
+    types:
+      - completed
+
+jobs:
+  sign:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+
+    permissions:
+      contents: write
+      packages: write
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3.4.0
+
+      - name: Setup Syft
+        uses: anchore/sbom-action/download-syft@v0.15.10
+
+      - name: Generate SBOM
+        run: syft . -o spdx-json=sbom.json
+
+      - name: Sign container images
+        env:
+          COSIGN_EXPERIMENTAL: 1
+        run: |
+          cosign sign "ghcr.io/mdaashir/nsm:${{ github.event.workflow_run.head_sha }}"
+          cosign sign "ghcr.io/mdaashir/nsm:latest"
+
+      - name: Sign SBOM
+        env:
+          COSIGN_EXPERIMENTAL: 1
+        run: |
+          cosign sign-blob --output-signature sbom.json.sig sbom.json
+
+      - name: Upload SBOM and signature
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom-and-signature
+          path: |
+            sbom.json
+            sbom.json.sig

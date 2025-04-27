@@ -56,29 +56,36 @@ brews:
     repository:
       owner: mdaashir
       name: homebrew-tap
-    license: MIT
+      token: '{{ .Env.TAP_GITHUB_TOKEN }}'
+    commit_author:
+      name: goreleaserbot
+      email: bot@goreleaser.com
+    folder: Formula
+    install: |
+      bin.install "nsm"
+    test: |
+      system "#{bin}/nsm --version"
+    service: |
+      run [opt_bin/"nsm", "doctor"]
+      keep_alive false
+      error_log_path var/"log/nsm.log"
+      log_path var/"log/nsm.log"
     dependencies:
-      - nix
-
-# Snap package
-snapcrafts:
-  - name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
-    summary: Nix Shell Manager
-    description: A tool to manage Nix development environments
-    grade: stable
-    confinement: classic
-    base: core22
-    publish: true
+      - name: nix
+        type: optional
+    caveats: |
+      To use NSM, you need to have Nix package manager installed.
+      Install Nix from https://nixos.org/download.html
 
 # Docker settings
 dockers:
   - image_templates:
-      - "ghcr.io/mdaashir/nsm:{{ .Version }}"
-      - "ghcr.io/mdaashir/nsm:latest"
+      - 'ghcr.io/mdaashir/nsm:{{ .Version }}'
+      - 'ghcr.io/mdaashir/nsm:latest'
     dockerfile: Dockerfile
     use: docker
     build_flag_templates:
-      - "--platform=linux/amd64,linux/arm64,linux/arm/v7"
+      - '--platform=linux/amd64,linux/arm64,linux/arm/v7'
     extra_files:
       - go.mod
       - go.sum
@@ -90,10 +97,10 @@ changelog:
   sort: asc
   filters:
     exclude:
-      - "^docs:"
-      - "^test:"
-      - "^ci:"
-      - "^chore:"
+      - '^docs:'
+      - '^test:'
+      - '^ci:'
+      - '^chore:'
       - Merge pull request
       - Merge branch
 
@@ -107,6 +114,32 @@ release:
     name: nsm
   draft: false
   prerelease: auto
+  name_template: 'v{{.Version}}'
+  header: |
+    ## NSM v{{.Version}}
+
+    See [CHANGELOG.md](CHANGELOG.md) for more details.
+  footer: |
+    **Full Changelog**: https://github.com/mdaashir/NSM/compare/{{ .PreviousTag }}...{{ .Tag }}
+
+    ## Installation
+
+    ### Homebrew
+    ```bash
+    brew install mdaashir/tap/nsm
+    ```
+
+    ### Nix
+    ```bash
+    nix profile install github:mdaashir/NSM
+    ```
+
+    ### Linux packages available for:
+    - Debian/Ubuntu (.deb)
+    - RHEL/Fedora (.rpm)
+    - Alpine Linux (.apk)
+    - Arch Linux (.pkg.tar.zst)
+    - Android/Termux (.deb)
 
 # Before build hooks
 before:

@@ -1,0 +1,19 @@
+name: Snapcraft
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+jobs:
+  snap:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: snapcore/action-build@v1
+        id: build
+      - uses: snapcore/action-publish@v1
+        with:
+          store_login: ${{ secrets.SNAPCRAFT_TOKEN }}
+          snap: ${{ steps.build.outputs.snap }}
+          release: stable
