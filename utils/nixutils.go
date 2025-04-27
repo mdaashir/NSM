@@ -139,16 +139,16 @@ func ExtractFlakePackages(content string) []string {
 		trimmed := strings.TrimSpace(line)
 		if strings.Contains(trimmed, "buildInputs = [") {
 			inBuildInputs = true
-
-			// Handle case where packages are on the same line
+			// Extract packages if they are on the same line
 			if idx := strings.Index(trimmed, "["); idx != -1 {
 				pkgPart := trimmed[idx+1:]
+				// Remove closing bracket and any trailing characters
 				if endIdx := strings.Index(pkgPart, "]"); endIdx != -1 {
 					pkgPart = pkgPart[:endIdx]
 				}
-				pkgs := strings.Split(pkgPart, " ")
-				for _, pkg := range pkgs {
-					pkg = strings.TrimSpace(pkg)
+				// Split and clean package names
+				for _, pkg := range strings.Fields(pkgPart) {
+					pkg = strings.Trim(pkg, ";,[]")
 					if pkg != "" {
 						packages = append(packages, pkg)
 					}
@@ -161,7 +161,7 @@ func ExtractFlakePackages(content string) []string {
 				break
 			}
 			if trimmed != "" && !strings.HasPrefix(trimmed, "#") {
-				// Remove trailing characters like ";" or "," if present
+				// Clean the package name
 				cleaned := strings.Trim(trimmed, ";,[]")
 				cleaned = strings.TrimSpace(cleaned)
 				if cleaned != "" {
