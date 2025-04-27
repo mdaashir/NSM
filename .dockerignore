@@ -1,0 +1,10 @@
+.git
+.gitignore
+.goreleaser.yml
+Output/
+tests/
+README.md
+LICENSE
+Makefile
+*.md
+dist/
