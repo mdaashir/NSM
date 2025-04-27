@@ -29,11 +29,9 @@ dockers:
   - image_templates:
       - "mdaashir/nsm:{{ .Version }}"
       - "mdaashir/nsm:latest"
-    use: buildx
+    use: docker
     build_flag_templates:
       - "--platform=linux/amd64"
-      - "--cache-from=type=gha"
-      - "--cache-to=type=gha,mode=max"
     dockerfile: Dockerfile
     extra_files:
       - go.mod
