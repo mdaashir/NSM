@@ -1,3 +1,5 @@
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
+
 name: Snapcraft
 
 on:
@@ -8,8 +10,25 @@ on:
 jobs:
   snap:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
+
+      - name: Cache snap packages
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/snap/snapcraft/common/cache
+            ~/.cache/snapcraft
+          key: ${{ runner.os }}-snapcraft-${{ hashFiles('snap/snapcraft.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-snapcraft-
+
+      - name: Set up snapcraft
+        run: |
+          sudo snap install snapcraft --classic
+          sudo chown root:root /
+
       - uses: snapcore/action-build@v1
         id: build
       - uses: snapcore/action-publish@v1

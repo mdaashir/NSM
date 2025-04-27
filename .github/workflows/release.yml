@@ -1,3 +1,5 @@
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
+
 name: Release
 
 on:
@@ -12,6 +14,10 @@ permissions:
 jobs:
   goreleaser:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    if: github.repository == 'mdaashir/NSM'
+
     steps:
       - uses: actions/checkout@v4
         with:
@@ -28,7 +34,13 @@ jobs:
         uses: DeterminateSystems/nix-installer-action@main
 
       - name: Run Tests
-        run: go test -v ./tests/unit/... ./tests/integration/...
+        run: go test -v -race ./tests/unit/... ./tests/integration/...
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
@@ -36,6 +48,12 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Generate SBOM
+        uses: anchore/sbom-action@v0
+        with:
+          format: cyclonedx-json
+          output-file: sbom.json
 
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v5
@@ -46,3 +64,10 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAP_GITHUB_TOKEN: ${{ secrets.GH_PAT }}
+
+      - name: Upload SBOM
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom
+          path: sbom.json
+          retention-days: 30

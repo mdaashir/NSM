@@ -1,3 +1,5 @@
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
+
 name: Test
 
 on:
@@ -6,12 +8,19 @@ on:
   pull_request:
     branches: [main]
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
-    name: Run Tests
-    runs-on: ubuntu-latest
+    name: Run Tests (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
     strategy:
+      fail-fast: false
       matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
         go-version: ['1.24.x']
 
     steps:
@@ -27,23 +36,63 @@ jobs:
       - name: Install Nix
         uses: DeterminateSystems/nix-installer-action@main
 
-      - name: Run Unit Tests
-        run: go test -v ./tests/unit/...
-
-      - name: Run Integration Tests
-        run: go test -v ./tests/integration/...
-
-      - name: Run Benchmarks
-        run: go test -v -bench=. ./tests/benchmark/...
-
-      - name: Check Test Coverage
+      - name: Verify Go modules
         run: |
-          go test -coverprofile=coverage.out ./...
-          go tool cover -func=coverage.out
+          go mod verify
+          go mod tidy
+          if [ -n "$(git status --porcelain go.mod go.sum)" ]; then
+            echo "go.mod or go.sum is not up to date"
+            exit 1
+          fi
+
+      - name: Cache Go build and test cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+            ~/.cache/golangci-lint
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}-${{ hashFiles('**/*.go') }}
+          restore-keys: |
+            ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}-
+            ${{ runner.os }}-go-
+
+      - name: Install dependencies
+        run: go mod download
+
+      - name: Run Unit Tests with caching
+        run: go test -v -count=1 -race -parallel $(nproc) ./tests/unit/... -test.cache
+
+      - name: Run Integration Tests with caching
+        run: go test -v -count=1 -race -parallel $(nproc) ./tests/integration/... -test.cache
+
+      - name: Run Benchmarks with caching
+        run: go test -v -count=1 -bench=. ./tests/benchmark/... -test.cache
+
+      - name: Generate Test Coverage
+        run: go test -race -coverprofile=coverage.out -covermode=atomic ./...
+
+      - name: Check coverage threshold
+        run: |
+          COVERAGE=$(go tool cover -func=coverage.out | grep total | awk '{print substr($3, 1, length($3)-1)}')
+          THRESHOLD=80
+          if (( $(echo "$COVERAGE < $THRESHOLD" | bc -l) )); then
+            echo "Test coverage ($COVERAGE%) is below threshold ($THRESHOLD%)"
+            exit 1
+          fi
+          echo "Test coverage: $COVERAGE%"
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report-${{ matrix.os }}
+          path: coverage.out
+          retention-days: 7
 
   lint:
     name: Lint
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
 

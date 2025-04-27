@@ -1,0 +1,13 @@
+# Default owners for everything in the repo
+* @mdaashir
+
+# Go source files
+*.go @mdaashir
+
+# Workflow files require review from maintainers
+.github/workflows/* @mdaashir
+
+# Security-sensitive files
+.goreleaser.yml @mdaashir
+snap/snapcraft.yaml @mdaashir
+flake.nix @mdaashir

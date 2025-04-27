@@ -26,6 +26,29 @@ builds:
     binary: nsm
     ldflags:
       - -s -w
+      - -X main.version={{.Version}}
+      - -X main.commit={{.Commit}}
+      - -X main.date={{.Date}}
+    mod_timestamp: '{{ .CommitTimestamp }}'
+    flags:
+      - -trimpath
+    buildmode: pie
+    hooks:
+      pre:
+        - go mod verify
+      post:
+        - upx "{{ .Path }}" # Compress binary if possible
+
+# Build cache settings
+gomod:
+  proxy: true
+  env:
+    - GOPROXY=https://proxy.golang.org,direct
+    - GOSUMDB=sum.golang.org
+  gobuild:
+    - GO111MODULE=on
+    - GOCACHE=/go/cache
+    - GOMODCACHE=/go/pkg/mod
 
 # Native package formats for Linux
 nfpms:

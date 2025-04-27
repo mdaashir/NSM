@@ -1,5 +1,11 @@
 # NSM (Nix Shell Manager)
 
+[![Test](https://github.com/mdaashir/NSM/actions/workflows/test.yml/badge.svg)](https://github.com/mdaashir/NSM/actions/workflows/test.yml)
+[![Release](https://github.com/mdaashir/NSM/actions/workflows/release.yml/badge.svg)](https://github.com/mdaashir/NSM/actions/workflows/release.yml)
+[![Go Report Card](https://goreportcard.com/badge/github.com/mdaashir/NSM)](https://goreportcard.com/report/github.com/mdaashir/NSM)
+[![Go Version](https://img.shields.io/github/go-mod/go-version/mdaashir/NSM)](https://go.dev/doc/devel/release)
+[![License](https://img.shields.io/github/license/mdaashir/NSM)](LICENSE)
+
 A command-line tool to manage Nix development environments with ease.
 
 ## Features
