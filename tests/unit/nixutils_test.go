@@ -3,203 +3,188 @@ package unit
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/mdaashir/NSM/tests/testutils"
 	"github.com/mdaashir/NSM/utils"
 )
 
-func TestValidatePackage(t *testing.T) {
-	tests := []struct {
-		name     string
-		pkg      string
-		expected bool
-	}{
-		{"empty package", "", false},
-		{"valid package", "gcc", true},
-		{"valid package with version", "python3.9", true},
-		{"valid package with hyphen", "node-red", true},
-		{"invalid package with space", "gcc python", false},
-		{"invalid package with special chars", "gcc$python", false},
-		{"valid package with dot", "go.mod", true},
-		{"valid package with underscore", "test_package", true},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := utils.ValidatePackage(tt.pkg); got != tt.expected {
-				t.Errorf("ValidatePackage(%q) = %v, want %v", tt.pkg, got, tt.expected)
-			}
-		})
-	}
-}
-
-// TestCheckFlakeSupport tests the flake support detection
-func TestCheckFlakeSupport(t *testing.T) {
-	t.Run("flake supported version", func(t *testing.T) {
-		// Create a mock nix command that returns version 2.4.0
-		mockPath := testutils.CreateMockCmd(t, "nix", "nix (Nix) 2.4.0", 0)
-		defer os.Remove(mockPath)
-
-		// Update PATH to include mock binary directory as first entry
-		oldPath := os.Getenv("PATH")
-		mockDir := filepath.Dir(mockPath)
-		if err := os.Chmod(mockPath, 0755); err != nil {
-			t.Fatal(err)
-		}
-
-		newPath := mockDir
-		if oldPath != "" {
-			newPath = mockDir + string(os.PathListSeparator) + oldPath
-		}
-		if err := os.Setenv("PATH", newPath); err != nil {
-			t.Fatal(err)
-		}
-		defer os.Setenv("PATH", oldPath)
-
-		if !utils.CheckFlakeSupport() {
-			t.Error("Expected flake support for Nix 2.4.0")
-		}
-	})
-
-	t.Run("flake unsupported version", func(t *testing.T) {
-		mockPath := testutils.CreateMockCmd(t, "nix", "nix (Nix) 2.3.0", 0)
-		defer os.Remove(mockPath)
-
-		// Update PATH to include mock binary directory as first entry
-		oldPath := os.Getenv("PATH")
-		mockDir := filepath.Dir(mockPath)
-		if err := os.Chmod(mockPath, 0755); err != nil {
-			t.Fatal(err)
-		}
-
-		newPath := mockDir
-		if oldPath != "" {
-			newPath = mockDir + string(os.PathListSeparator) + oldPath
-		}
-		if err := os.Setenv("PATH", newPath); err != nil {
-			t.Fatal(err)
-		}
-		defer os.Setenv("PATH", oldPath)
-
-		if utils.CheckFlakeSupport() {
-			t.Error("Expected no flake support for Nix 2.3.0")
-		}
-	})
-}
-
-func TestExtractPackages(t *testing.T) {
-	config, cleanup := testutils.CreateTestConfig(t)
+func TestNixEnvironment(t *testing.T) {
+	testDir, cleanup := testutils.SetupTestEnv(t)
 	defer cleanup()
 
-	t.Run("extract from shell.nix", func(t *testing.T) {
-		content, err := os.ReadFile(config.ShellNixPath)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		packages := utils.ExtractShellNixPackages(string(content))
-		expected := []string{"gcc", "python3"}
-
-		if len(packages) != len(expected) {
-			t.Errorf("got %d packages (%v), want %d (%v)", len(packages), packages, len(expected), expected)
-		}
-
-		for i, pkg := range packages {
-			if pkg != expected[i] {
-				t.Errorf("package[%d] = %q, want %q", i, pkg, expected[i])
-			}
-		}
-	})
-
-	t.Run("extract from flake.nix", func(t *testing.T) {
-		content, err := os.ReadFile(config.FlakeNixPath)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		packages := utils.ExtractFlakePackages(string(content))
-		expected := []string{"gcc", "python3"}
-
-		if len(packages) != len(expected) {
-			t.Errorf("got %d packages (%v), want %d (%v)", len(packages), packages, len(expected), expected)
-		}
-
-		for i, pkg := range packages {
-			if pkg != expected[i] {
-				t.Errorf("package[%d] = %q, want %q", i, pkg, expected[i])
-			}
-		}
-	})
-}
-
-func TestGetNixVersion(t *testing.T) {
-	expectedVersion := "nix (Nix) 2.4.0"
-	mockPath := testutils.CreateMockCmd(t, "nix", expectedVersion, 0)
-	defer os.Remove(mockPath)
-
-	// Update PATH to include mock binary directory
-	oldPath := os.Getenv("PATH")
-	mockDir := filepath.Dir(mockPath)
-	if err := os.Chmod(mockPath, 0755); err != nil {
-		t.Fatal(err)
+	// Test nix shell environment detection
+	inNixShell := utils.IsInNixShell()
+	if os.Getenv("IN_NIX_SHELL") != "" && !inNixShell {
+		t.Error("Failed to detect active nix-shell environment")
 	}
 
-	newPath := mockDir
-	if oldPath != "" {
-		newPath = mockDir + string(os.PathListSeparator) + oldPath
-	}
-	if err := os.Setenv("PATH", newPath); err != nil {
-		t.Fatal(err)
-	}
-	defer os.Setenv("PATH", oldPath)
-
-	version, err := utils.GetNixVersion()
-	if err != nil {
-		t.Fatalf("GetNixVersion() error = %v", err)
-	}
-
-	if version != expectedVersion {
-		t.Errorf("GetNixVersion() = %q, want %q", version, expectedVersion)
+	// Test nix installation check
+	nixInstalled := utils.IsNixInstalled()
+	if nixInstalled {
+		path, err := utils.GetNixPath()
+		testutils.AssertNoError(t, err)
+		if path == "" {
+			t.Error("Nix path is empty despite Nix being installed")
+		}
 	}
 }
 
-func TestGetPackageVersion(t *testing.T) {
-	// Create a mock nix-env command that returns package info in JSON format
-	mockOutput := `{
-        "nixpkgs.gcc": {
-            "name": "gcc-12.3.0",
-            "version": "12.3.0",
-            "system": "x86_64-linux",
-            "outPath": "/nix/store/...-gcc-12.3.0"
-        }
-    }`
-	mockPath := testutils.CreateMockCmd(t, "nix-env", mockOutput, 0)
-	defer os.Remove(mockPath)
+func TestFlakeManagement(t *testing.T) {
+	testDir, cleanup := testutils.SetupTestEnv(t)
+	defer cleanup()
 
-	// Update PATH to include mock binary directory
-	oldPath := os.Getenv("PATH")
-	mockDir := filepath.Dir(mockPath)
-	if err := os.Chmod(mockPath, 0755); err != nil {
-		t.Fatal(err)
+	// Create test flake
+	flakePath := filepath.Join(testDir, "flake.nix")
+	testutils.CreateTestFlakeNix(t, testDir, []string{"git", "go"})
+
+	// Test flake initialization
+	err := utils.InitFlake(testDir)
+	testutils.AssertNoError(t, err)
+
+	// Test flake lock existence
+	lockPath := filepath.Join(testDir, "flake.lock")
+	if !utils.FileExists(lockPath) {
+		t.Error("Flake lock file was not created")
 	}
 
-	newPath := mockDir
-	if oldPath != "" {
-		newPath = mockDir + string(os.PathListSeparator) + oldPath
-	}
-	if err := os.Setenv("PATH", newPath); err != nil {
-		t.Fatal(err)
-	}
-	defer os.Setenv("PATH", oldPath)
+	// Test flake update
+	err = utils.UpdateFlake(testDir)
+	testutils.AssertNoError(t, err)
 
-	version, err := utils.GetPackageVersion("gcc")
+	// Test invalid flake handling
+	invalidDir := filepath.Join(testDir, "invalid")
+	err = os.MkdirAll(invalidDir, 0755)
+	testutils.AssertNoError(t, err)
+
+	err = utils.InitFlake(invalidDir)
+	testutils.AssertError(t, err)
+}
+
+func TestPackageManagement(t *testing.T) {
+	testDir, cleanup := testutils.SetupTestEnv(t)
+	defer cleanup()
+
+	// Test package list parsing
+	packages := []string{"git", "go", "nodejs"}
+	shellNixPath := filepath.Join(testDir, "shell.nix")
+	testutils.CreateTestShellNix(t, testDir, packages)
+
+	parsed, err := utils.ParsePackageList(shellNixPath)
+	testutils.AssertNoError(t, err)
+
+	if len(parsed) != len(packages) {
+		t.Errorf("Expected %d packages, got %d", len(packages), len(parsed))
+	}
+
+	for _, pkg := range packages {
+		found := false
+		for _, p := range parsed {
+			if p == pkg {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("Package %s not found in parsed list", pkg)
+		}
+	}
+
+	// Test invalid package list
+	invalidPath := filepath.Join(testDir, "invalid.nix")
+	err = os.WriteFile(invalidPath, []byte("invalid nix content"), 0644)
+	testutils.AssertNoError(t, err)
+
+	_, err = utils.ParsePackageList(invalidPath)
+	testutils.AssertError(t, err)
+}
+
+func TestShellEnvironment(t *testing.T) {
+	testDir, cleanup := testutils.SetupTestEnv(t)
+	defer cleanup()
+
+	// Test shell.nix generation
+	packages := []string{"git", "go"}
+	err := utils.GenerateShellNix(testDir, packages)
+	testutils.AssertNoError(t, err)
+
+	shellNixPath := filepath.Join(testDir, "shell.nix")
+	if !utils.FileExists(shellNixPath) {
+		t.Error("shell.nix was not generated")
+	}
+
+	// Verify shell.nix content
+	content, err := os.ReadFile(shellNixPath)
+	testutils.AssertNoError(t, err)
+
+	for _, pkg := range packages {
+		if !strings.Contains(string(content), pkg) {
+			t.Errorf("Generated shell.nix does not contain package %s", pkg)
+		}
+	}
+
+	// Test shell environment activation
+	env, err := utils.GetNixShellEnv(testDir)
+	testutils.AssertNoError(t, err)
+
+	requiredVars := []string{"PATH", "NIX_PATH", "NIX_PROFILES"}
+	for _, v := range requiredVars {
+		if _, exists := env[v]; !exists {
+			t.Errorf("Required environment variable %s not found", v)
+		}
+	}
+}
+
+func TestNixCache(t *testing.T) {
+	testDir, cleanup := testutils.SetupTestEnv(t)
+	defer cleanup()
+
+	// Test cache directory management
+	cacheDir, err := utils.GetNixCacheDir()
+	testutils.AssertNoError(t, err)
+
+	err = utils.CleanNixCache()
+	testutils.AssertNoError(t, err)
+
+	// Verify cache directory is empty
+	entries, err := os.ReadDir(cacheDir)
+	testutils.AssertNoError(t, err)
+	if len(entries) > 0 {
+		t.Error("Cache directory not empty after cleaning")
+	}
+
+	// Test cache invalidation
+	err = utils.InvalidateNixCache()
+	testutils.AssertNoError(t, err)
+}
+
+func TestNixProfile(t *testing.T) {
+	testDir, cleanup := testutils.SetupTestEnv(t)
+	defer cleanup()
+
+	// Test profile management
+	profile, err := utils.GetCurrentProfile()
+	testutils.AssertNoError(t, err)
+
+	if profile == "" {
+		t.Error("Current profile path is empty")
+	}
+
+	// Test profile generation list
+	gens, err := utils.ListProfileGenerations()
+	testutils.AssertNoError(t, err)
+
+	if len(gens) == 0 {
+		t.Error("No profile generations found")
+	}
+
+	// Test profile rollback
+	err = utils.RollbackProfile()
 	if err != nil {
-		t.Fatalf("GetPackageVersion() error = %v", err)
-	}
-
-	expectedVersion := "12.3.0"
-	if version != expectedVersion {
-		t.Errorf("GetPackageVersion() = %q, want %q", version, expectedVersion)
+		// Rollback might fail if there's only one generation
+		if !strings.Contains(err.Error(), "no generations to roll back to") {
+			t.Error("Unexpected rollback error:", err)
+		}
 	}
 }

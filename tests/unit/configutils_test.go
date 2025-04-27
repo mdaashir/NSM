@@ -1,8 +1,6 @@
 package unit
 
 import (
-	"os"
-	"path/filepath"
 	"testing"
 
 	"github.com/mdaashir/NSM/tests/testutils"
@@ -10,186 +8,197 @@ import (
 	"github.com/spf13/viper"
 )
 
-func setupTestConfig(t *testing.T) func() {
-	t.Helper()
-	dir := testutils.CreateTempDir(t)
-
-	// Save original config state
-	oldConfigFile := viper.ConfigFileUsed()
-
-	// Reset viper completely
-	viper.Reset()
-	viper.SetConfigName("config")
-	viper.SetConfigType("yaml")
-	viper.AddConfigPath(dir)
-
-	// Set initial config values
-	viper.Set("channel.url", "nixos-unstable")
-	viper.Set("shell.format", "shell.nix")
-	viper.Set("default.packages", []string{"gcc", "python3"})
-	viper.Set("config_version", "1.0.0")
-	viper.Set("pins", map[string]string{
-		"gcc":     "12.3.0",
-		"python3": "3.9.0",
-	})
-
-	// Save initial config
-	err := viper.SafeWriteConfig()
-	if err != nil {
-		t.Fatalf("Failed to write test config: %v", err)
-	}
-
-	cleanup := func() {
-		// Reset viper to original state
-		viper.Reset()
-		if oldConfigFile != "" {
-			viper.SetConfigFile(oldConfigFile)
-			_ = viper.ReadInConfig()
-		}
-
-		// Clean up test directory
-		err := os.RemoveAll(dir)
-		if err != nil {
-			t.Logf("Failed to cleanup test directory: %v", err)
-		}
-	}
-
-	return cleanup
-}
-
 func TestConfigValidation(t *testing.T) {
-	cleanup := setupTestConfig(t)
+	testDir, cleanup := testutils.SetupTestEnv(t)
 	defer cleanup()
 
-	t.Run("valid config", func(t *testing.T) {
-		errors := utils.ValidateConfig()
-		if len(errors) > 0 {
-			t.Errorf("Expected no validation errors, got %v", errors)
-		}
-	})
-
-	t.Run("missing channel url", func(t *testing.T) {
-		viper.Set("channel.url", "")
-		errors := utils.ValidateConfig()
-		if len(errors) == 0 {
-			t.Error("Expected validation error for missing channel URL")
-		}
-		// Restore valid value
-		viper.Set("channel.url", "nixos-unstable")
-	})
-
-	t.Run("invalid shell format", func(t *testing.T) {
-		viper.Set("shell.format", "invalid")
-		errors := utils.ValidateConfig()
-		if len(errors) == 0 {
-			t.Error("Expected validation error for invalid shell format")
-		}
-		// Restore valid value
-		viper.Set("shell.format", "shell.nix")
-	})
-}
-
-func TestMigrateConfig(t *testing.T) {
-	t.Run("migrate from no version", func(t *testing.T) {
-		// Set up test config with a temporary directory
-		dir := testutils.CreateTempDir(t)
-		defer func() {
-			err := os.RemoveAll(dir)
-			if err != nil {
-				t.Logf("Failed to cleanup test directory: %v", err)
-			}
-		}()
-
-		// Reset viper and set up new config
-		viper.Reset()
-		viper.SetConfigName("config")
-		viper.SetConfigType("yaml")
-		viper.AddConfigPath(dir)
-
-		// Write initial config file
-		configFile := filepath.Join(dir, "config.yaml")
-		err := os.WriteFile(configFile, []byte(""), 0600)
-		if err != nil {
-			t.Fatalf("Failed to create config file: %v", err)
-		}
-
-		// Set config file in viper
-		viper.SetConfigFile(configFile)
-
-		// Remove version for testing migration
-		viper.Set("config_version", nil)
-
-		// Run migration
-		if err := utils.MigrateConfig(); err != nil {
-			t.Fatalf("MigrateConfig() error = %v", err)
-		}
-
-		// Verify migration results
-		if !viper.IsSet("config_version") {
-			t.Error("config_version was not set during migration")
-		}
-
-		if ver := viper.GetString("config_version"); ver != "1.0.0" {
-			t.Errorf("config_version = %q, want 1.0.0", ver)
-		}
-	})
-}
-
-func TestLoadConfig(t *testing.T) {
-	cleanup := setupTestConfig(t)
-	defer cleanup()
-
-	config, err := utils.LoadConfig()
-	if err != nil {
-		t.Fatalf("LoadConfig() error = %v", err)
-	}
-
-	// Check pins
-	expectedPins := map[string]string{
-		"gcc":     "12.3.0",
-		"python3": "3.9.0",
-	}
-
-	if len(config.Pins) != len(expectedPins) {
-		t.Errorf("Expected %d pins, got %d", len(expectedPins), len(config.Pins))
-	}
-
-	for pkg, version := range expectedPins {
-		if got := config.Pins[pkg]; got != version {
-			t.Errorf("Pin[%q] = %q, want %q", pkg, got, version)
-		}
-	}
-}
-
-func TestSaveConfig(t *testing.T) {
-	cleanup := setupTestConfig(t)
-	defer cleanup()
-
-	// Modify config
-	config := &utils.Config{
-		Pins: map[string]string{
-			"nodejs": "18.0.0",
-			"go":     "1.24.0",
+	tests := []struct {
+		name          string
+		config        map[string]interface{}
+		expectedErrs  int
+		expectErrKeys []string
+	}{
+		{
+			name: "valid config",
+			config: map[string]interface{}{
+				"channel.url":      "nixos-unstable",
+				"shell.format":     "shell.nix",
+				"default.packages": []string{},
+				"config_version":   "1.0.0",
+				"pins":             map[string]string{},
+			},
+			expectedErrs: 0,
+		},
+		{
+			name: "invalid channel",
+			config: map[string]interface{}{
+				"channel.url":      "invalid-channel",
+				"shell.format":     "shell.nix",
+				"default.packages": []string{},
+				"config_version":   "1.0.0",
+			},
+			expectedErrs:  1,
+			expectErrKeys: []string{"channel.url"},
+		},
+		{
+			name: "invalid shell format",
+			config: map[string]interface{}{
+				"channel.url":      "nixos-unstable",
+				"shell.format":     "invalid.nix",
+				"default.packages": []string{},
+				"config_version":   "1.0.0",
+			},
+			expectedErrs:  1,
+			expectErrKeys: []string{"shell.format"},
+		},
+		{
+			name: "invalid version",
+			config: map[string]interface{}{
+				"channel.url":      "nixos-unstable",
+				"shell.format":     "shell.nix",
+				"default.packages": []string{},
+				"config_version":   "invalid",
+			},
+			expectedErrs:  1,
+			expectErrKeys: []string{"config_version"},
 		},
 	}
 
-	if err := utils.SaveConfig(config); err != nil {
-		t.Fatalf("SaveConfig() error = %v", err)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Reset and set up config for each test
+			viper.Reset()
+			for k, v := range tt.config {
+				viper.Set(k, v)
+			}
+
+			errors := utils.ValidateConfig()
+			if len(errors) != tt.expectedErrs {
+				t.Errorf("Expected %d errors, got %d", tt.expectedErrs, len(errors))
+			}
+
+			if tt.expectErrKeys != nil {
+				errKeys := make(map[string]bool)
+				for _, err := range errors {
+					errKeys[err.Key] = true
+				}
+				for _, key := range tt.expectErrKeys {
+					if !errKeys[key] {
+						t.Errorf("Expected error for key %s not found", key)
+					}
+				}
+			}
+		})
+	}
+}
+
+func TestConfigMigration(t *testing.T) {
+	testDir, cleanup := testutils.SetupTestEnv(t)
+	defer cleanup()
+
+	tests := []struct {
+		name           string
+		initialConfig  map[string]interface{}
+		expectedConfig map[string]interface{}
+	}{
+		{
+			name: "migrate old channel format",
+			initialConfig: map[string]interface{}{
+				"channel": "nixos-unstable",
+			},
+			expectedConfig: map[string]interface{}{
+				"channel.url": "nixos-unstable",
+			},
+		},
+		{
+			name: "migrate missing version",
+			initialConfig: map[string]interface{}{
+				"channel.url": "nixos-unstable",
+			},
+			expectedConfig: map[string]interface{}{
+				"channel.url":    "nixos-unstable",
+				"config_version": "1.0.0",
+			},
+		},
+		{
+			name: "migrate old version",
+			initialConfig: map[string]interface{}{
+				"channel.url":    "nixos-unstable",
+				"config_version": "1.0.0",
+			},
+			expectedConfig: map[string]interface{}{
+				"channel.url":    "nixos-unstable",
+				"config_version": "1.1.0",
+			},
+		},
 	}
 
-	// Verify changes were saved
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Reset and set up config for each test
+			viper.Reset()
+			for k, v := range tt.initialConfig {
+				viper.Set(k, v)
+			}
+
+			err := utils.MigrateConfig()
+			testutils.AssertNoError(t, err)
+
+			for k, v := range tt.expectedConfig {
+				testutils.AssertConfigValue(t, k, v)
+			}
+		})
+	}
+}
+
+func TestConfigIO(t *testing.T) {
+	testDir, cleanup := testutils.SetupTestEnv(t)
+	defer cleanup()
+
+	// Test loading config
+	config, err := utils.LoadConfig()
+	testutils.AssertNoError(t, err)
+	if config == nil {
+		t.Fatal("Expected non-nil config")
+	}
+
+	// Test saving config
+	config.ChannelURL = "nixos-22.05"
+	err = utils.SaveConfig(config)
+	testutils.AssertNoError(t, err)
+
+	// Verify saved config
 	newConfig, err := utils.LoadConfig()
-	if err != nil {
-		t.Fatalf("LoadConfig() error = %v", err)
+	testutils.AssertNoError(t, err)
+	if newConfig.ChannelURL != "nixos-22.05" {
+		t.Errorf("Expected channel.url to be nixos-22.05, got %s", newConfig.ChannelURL)
 	}
 
-	if len(newConfig.Pins) != len(config.Pins) {
-		t.Errorf("Saved config has %d pins, want %d", len(newConfig.Pins), len(config.Pins))
+	// Test nil config
+	err = utils.SaveConfig(nil)
+	testutils.AssertError(t, err)
+}
+
+func TestConfigSummary(t *testing.T) {
+	testDir, cleanup := testutils.SetupTestEnv(t)
+	defer cleanup()
+
+	summary := utils.GetConfigSummary()
+
+	expectedKeys := []string{
+		"channel.url",
+		"shell.format",
+		"default.packages",
+		"config_file",
+		"environment",
+		"flakes_enabled",
+		"nix_installed",
+		"config_validated",
 	}
 
-	for pkg, version := range config.Pins {
-		if got := newConfig.Pins[pkg]; got != version {
-			t.Errorf("Saved pin[%q] = %q, want %q", pkg, got, version)
+	for _, key := range expectedKeys {
+		if _, ok := summary[key]; !ok {
+			t.Errorf("Expected summary to contain key %s", key)
 		}
 	}
 }

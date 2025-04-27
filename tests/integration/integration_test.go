@@ -4,130 +4,192 @@ package integration
 
 import (
 	"os"
-	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/mdaashir/NSM/tests/testutils"
-	"github.com/mdaashir/NSM/utils"
-	"github.com/spf13/viper"
 )
 
-// setupTestConfig creates a temporary config file for testing
-func setupTestConfig(t *testing.T, dir string) func() {
-	t.Helper()
+func TestWorkflowInitToRun(t *testing.T) {
+	testutils.SkipIfNotNix(t)
 
-	// Save original config state
-	oldConfigFile := viper.ConfigFileUsed()
-
-	// Reset viper
-	viper.Reset()
-
-	// Create config directory
-	configDir := filepath.Join(dir, ".config", "NSM")
-	if err := os.MkdirAll(configDir, 0755); err != nil {
-		t.Fatal(err)
-	}
-
-	// Setup viper
-	viper.SetConfigName("config")
-	viper.SetConfigType("yaml")
-	viper.AddConfigPath(configDir)
-
-	// Set test values
-	viper.Set("channel.url", "nixos-unstable")
-	viper.Set("shell.format", "shell.nix")
-	viper.Set("default.packages", []string{})
-	viper.Set("config_version", "1.0.0")
-
-	// Save config
-	if err := viper.SafeWriteConfig(); err != nil {
-		t.Fatal(err)
-	}
-
-	return func() {
-		// Reset viper to original state
-		viper.Reset()
-		if oldConfigFile != "" {
-			viper.SetConfigFile(oldConfigFile)
-			_ = viper.ReadInConfig()
-		}
-	}
-}
-
-// TestPackageManagement tests package management operations
-func TestPackageManagement(t *testing.T) {
-	config, cleanup := testutils.CreateTestConfig(t)
+	tmpDir, cleanup := testutils.TempDir(t)
 	defer cleanup()
 
-	// Setup test configuration
-	configCleanup := setupTestConfig(t, config.TempDir)
-	defer configCleanup()
+	testutils.WithWorkDir(t, tmpDir, func() {
+		// Test init command
+		stdout, stderr := testutils.CaptureOutput(t, func() {
+			rootCmd.SetArgs([]string{"init"})
+			if err := rootCmd.Execute(); err != nil {
+				t.Fatalf("init command failed: %v", err)
+			}
+		})
 
-	// Save the current directory
-	origDir, err := os.Getwd()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer func(dir string) {
-		err := os.Chdir(dir)
-		if err != nil {
-			t.Fatal(err)
+		testutils.AssertFileExists(t, "shell.nix")
+		if stderr != "" {
+			t.Errorf("Unexpected stderr output: %s", stderr)
 		}
-	}(origDir)
+		if !strings.Contains(stdout, "Created shell.nix") {
+			t.Errorf("Expected success message, got: %s", stdout)
+		}
 
-	// Change to test directory
-	if err := os.Chdir(config.TempDir); err != nil {
-		t.Fatal(err)
-	}
+		// Test add command
+		stdout, stderr = testutils.CaptureOutput(t, func() {
+			rootCmd.SetArgs([]string{"add", "gcc"})
+			if err := rootCmd.Execute(); err != nil {
+				t.Fatalf("add command failed: %v", err)
+			}
+		})
 
-	t.Run("package operations", func(t *testing.T) {
-		// Verify initial packages
+		if stderr != "" {
+			t.Errorf("Unexpected stderr output: %s", stderr)
+		}
+		if !strings.Contains(stdout, "Added package") {
+			t.Errorf("Expected success message, got: %s", stdout)
+		}
+
+		// Verify package was added to shell.nix
 		content, err := os.ReadFile("shell.nix")
 		if err != nil {
-			t.Fatal(err)
+			t.Fatalf("Failed to read shell.nix: %v", err)
 		}
-
-		initialPkgs := utils.ExtractShellNixPackages(string(content))
-		if len(initialPkgs) != 2 {
-			t.Errorf("Expected 2 initial packages, got %d", len(initialPkgs))
+		if !strings.Contains(string(content), "gcc") {
+			t.Error("Package not found in shell.nix")
 		}
+	})
+}
 
-		// Mock the nix-env command to return package info
-		mockPath := testutils.CreateMockCmd(t, "nix-env", `{
-			"nixpkgs.gcc": {
-				"name": "gcc-12.3.0",
-				"version": "12.3.0",
-				"system": "x86_64-linux",
-				"outPath": "/nix/store/...-gcc-12.3.0"
+func TestFlakeWorkflow(t *testing.T) {
+	testutils.SkipIfNotNix(t)
+
+	tmpDir, cleanup := testutils.TempDir(t)
+	defer cleanup()
+
+	testutils.WithWorkDir(t, tmpDir, func() {
+		// Test init with flake
+		stdout, stderr := testutils.CaptureOutput(t, func() {
+			rootCmd.SetArgs([]string{"init", "--flake"})
+			if err := rootCmd.Execute(); err != nil {
+				t.Fatalf("init command failed: %v", err)
 			}
-		}`, 0)
-		defer os.Remove(mockPath)
+		})
 
-		// Update PATH to include mock binary
-		oldPath := os.Getenv("PATH")
-		mockDir := filepath.Dir(mockPath)
-		if err := os.Chmod(mockPath, 0755); err != nil {
-			t.Fatal(err)
+		testutils.AssertFileExists(t, "flake.nix")
+		if stderr != "" {
+			t.Errorf("Unexpected stderr output: %s", stderr)
 		}
-		newPath := mockDir + string(os.PathListSeparator) + oldPath
-		if err := os.Setenv("PATH", newPath); err != nil {
-			t.Fatal(err)
-		}
-		defer os.Setenv("PATH", oldPath)
-
-		// Pin a package version
-		if err := utils.PinPackage(); err != nil {
-			t.Errorf("Failed to pin package: %v", err)
+		if !strings.Contains(stdout, "Created flake.nix") {
+			t.Errorf("Expected success message, got: %s", stdout)
 		}
 
-		// Verify the pin was saved
-		cfg, err := utils.LoadConfig()
+		// Test flake package operations
+		stdout, stderr = testutils.CaptureOutput(t, func() {
+			rootCmd.SetArgs([]string{"add", "python3", "--flake"})
+			if err := rootCmd.Execute(); err != nil {
+				t.Fatalf("add command failed: %v", err)
+			}
+		})
+
+		if stderr != "" {
+			t.Errorf("Unexpected stderr output: %s", stderr)
+		}
+
+		// Verify package was added to flake.nix
+		content, err := os.ReadFile("flake.nix")
 		if err != nil {
-			t.Fatal(err)
+			t.Fatalf("Failed to read flake.nix: %v", err)
+		}
+		if !strings.Contains(string(content), "python3") {
+			t.Error("Package not found in flake.nix")
+		}
+	})
+}
+
+func TestConfigOperations(t *testing.T) {
+	tmpDir, cleanup := testutils.TempDir(t)
+	defer cleanup()
+
+	testutils.WithWorkDir(t, tmpDir, func() {
+		// Test config set
+		stdout, stderr := testutils.CaptureOutput(t, func() {
+			rootCmd.SetArgs([]string{"config", "set", "shell.format", "flake.nix"})
+			if err := rootCmd.Execute(); err != nil {
+				t.Fatalf("config set command failed: %v", err)
+			}
+		})
+
+		if stderr != "" {
+			t.Errorf("Unexpected stderr output: %s", stderr)
 		}
 
-		if version := cfg.Pins["gcc"]; version != "12.3.0" {
-			t.Errorf("Pin version = %q, want 12.3.0", version)
+		// Test config get
+		stdout, stderr = testutils.CaptureOutput(t, func() {
+			rootCmd.SetArgs([]string{"config", "show"})
+			if err := rootCmd.Execute(); err != nil {
+				t.Fatalf("config show command failed: %v", err)
+			}
+		})
+
+		if !strings.Contains(stdout, "shell.format: flake.nix") {
+			t.Error("Config value not set correctly")
 		}
+	})
+}
+
+func TestErrorHandling(t *testing.T) {
+	testutils.SkipIfNotNix(t)
+
+	tmpDir, cleanup := testutils.TempDir(t)
+	defer cleanup()
+
+	testutils.WithWorkDir(t, tmpDir, func() {
+		// Test invalid package name
+		_, stderr := testutils.CaptureOutput(t, func() {
+			rootCmd.SetArgs([]string{"add", "invalid-package-name-that-does-not-exist"})
+			rootCmd.Execute()
+		})
+
+		if !strings.Contains(stderr, "package not found") {
+			t.Error("Expected error message for invalid package")
+		}
+
+		// Test invalid config value
+		_, stderr = testutils.CaptureOutput(t, func() {
+			rootCmd.SetArgs([]string{"config", "set", "shell.format", "invalid"})
+			rootCmd.Execute()
+		})
+
+		if !strings.Contains(stderr, "must be either 'shell.nix' or 'flake.nix'") {
+			t.Error("Expected error message for invalid config value")
+		}
+	})
+}
+
+func TestCleanup(t *testing.T) {
+	testutils.SkipIfNotNix(t)
+
+	tmpDir, cleanup := testutils.TempDir(t)
+	defer cleanup()
+
+	testutils.WithWorkDir(t, tmpDir, func() {
+		// Create test files
+		testutils.CreateTestFile(t, tmpDir, "shell.nix", "# Test content")
+		testutils.CreateTestFile(t, tmpDir, "flake.nix", "# Test content")
+
+		// Test cleanup command
+		stdout, stderr := testutils.CaptureOutput(t, func() {
+			rootCmd.SetArgs([]string{"clean", "--force"})
+			if err := rootCmd.Execute(); err != nil {
+				t.Fatalf("clean command failed: %v", err)
+			}
+		})
+
+		if stderr != "" {
+			t.Errorf("Unexpected stderr output: %s", stderr)
+		}
+
+		// Verify files were cleaned up
+		testutils.AssertFileNotExists(t, "shell.nix")
+		testutils.AssertFileNotExists(t, "flake.nix")
 	})
 }

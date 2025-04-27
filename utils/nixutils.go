@@ -6,185 +6,193 @@ import (
 	"fmt"
 	"os/exec"
 	"strings"
+	"unicode"
 )
 
-// GetPackageVersion retrieves the version of an installed package by parsing the nix-env output
-func GetPackageVersion(pkg string) (string, error) {
-	// Run nix-env --query --JSON to get package information
-	cmd := exec.Command("nix-env", "--query", "--json")
-	output, err := cmd.Output()
-	if err != nil {
-		return "", fmt.Errorf("failed to query package info: %v", err)
+// CheckNixInstallation verifies Nix is properly installed
+func CheckNixInstallation() error {
+	if _, err := exec.LookPath("nix-env"); err != nil {
+		return fmt.Errorf("nix-env not found in PATH: %v", err)
 	}
 
-	// Parse JSON output
-	var pkgInfo map[string]struct {
-		Version string `json:"version"`
-	}
-	if err := json.Unmarshal(output, &pkgInfo); err != nil {
-		return "", fmt.Errorf("failed to parse package info: %v", err)
+	if _, err := exec.LookPath("nix-shell"); err != nil {
+		return fmt.Errorf("nix-shell not found in PATH: %v", err)
 	}
 
-	// Look for the package version
-	for name, info := range pkgInfo {
-		if strings.HasPrefix(name, "nixpkgs."+pkg) {
-			return info.Version, nil
-		}
-	}
-
-	return "", fmt.Errorf("package %s not found", pkg)
+	return nil
 }
 
-// GetNixVersion gets the installed Nix version
-func GetNixVersion() (string, error) {
-	cmd := exec.Command("nix", "--version")
-	output, err := cmd.Output()
-	if err != nil {
-		return "", fmt.Errorf("failed to get Nix version: %v", err)
-	}
-	return strings.TrimSpace(string(output)), nil
-}
-
-// CheckFlakeSupport checks if Nix flakes are enabled
-func CheckFlakeSupport() bool {
-	version, err := GetNixVersion()
-	if err != nil {
+// ValidatePackage checks if a package name is valid
+func ValidatePackage(pkg string) bool {
+	// Basic validation
+	if pkg == "" || len(pkg) > 128 {
 		return false
 	}
 
-	// Extract version number from format "nix (Nix) 2.4.0"
-	parts := strings.Fields(version)
-	if len(parts) < 3 {
-		return false
-	}
-
-	// Get the version string and remove any trailing characters
-	versionStr := strings.TrimRight(parts[2], ")")
-
-	// Parse major and minor versions
-	var major, minor int
-	if _, err := fmt.Sscanf(versionStr, "%d.%d", &major, &minor); err != nil {
-		// Try parsing with trailing .0
-		if _, err := fmt.Sscanf(versionStr, "%d.%d.0", &major, &minor); err != nil {
+	// Check for valid characters
+	for _, r := range pkg {
+		if !unicode.IsLetter(r) && !unicode.IsDigit(r) && r != '-' && r != '_' && r != '.' {
 			return false
 		}
 	}
 
-	// Flakes are supported in Nix 2.4 and above
-	return major > 2 || (major == 2 && minor >= 4)
+	// Check if package exists
+	cmd := exec.Command("nix-env", "-qa", pkg)
+	if err := cmd.Run(); err != nil {
+		Debug("Package validation failed for %s: %v", pkg, err)
+		return false
+	}
+
+	return true
 }
 
-// GetChannelInfo gets the current Nixpkgs channel information
+// GetPackageVersion gets the installed version of a package
+func GetPackageVersion(pkg string) (string, error) {
+	if !ValidatePackage(pkg) {
+		return "", fmt.Errorf("invalid package name: %s", pkg)
+	}
+
+	cmd := exec.Command("nix-env", "-qa", "--json", pkg)
+	output, err := cmd.Output()
+	if err != nil {
+		return "", fmt.Errorf("failed to get package version: %v", err)
+	}
+
+	var pkgInfo map[string]interface{}
+	if err := json.Unmarshal(output, &pkgInfo); err != nil {
+		return "", fmt.Errorf("failed to parse package info: %v", err)
+	}
+
+	for _, info := range pkgInfo {
+		if version, ok := info.(map[string]interface{})["version"].(string); ok {
+			return version, nil
+		}
+	}
+
+	return "", fmt.Errorf("version not found for package: %s", pkg)
+}
+
+// GetChannelInfo gets information about the current Nix channel
 func GetChannelInfo() (string, error) {
 	cmd := exec.Command("nix-channel", "--list")
 	output, err := cmd.Output()
 	if err != nil {
 		return "", fmt.Errorf("failed to get channel info: %v", err)
 	}
-	return strings.TrimSpace(string(output)), nil
+
+	channels := strings.Split(strings.TrimSpace(string(output)), "\n")
+	for _, channel := range channels {
+		if strings.HasPrefix(channel, "nixpkgs ") {
+			return strings.TrimPrefix(channel, "nixpkgs "), nil
+		}
+	}
+
+	return "", fmt.Errorf("nixpkgs channel not found")
 }
 
-// GetNixpkgsRevision gets the current Nixpkgs revision
+// GetNixpkgsRevision gets the current Git revision of nixpkgs
 func GetNixpkgsRevision() (string, error) {
-	cmd := exec.Command("nix-instantiate", "--eval", "-E", "<nixpkgs>.rev")
+	cmd := exec.Command("nix-instantiate", "--eval", "-E", "with import <nixpkgs> {}; lib.version")
 	output, err := cmd.Output()
 	if err != nil {
 		return "", fmt.Errorf("failed to get nixpkgs revision: %v", err)
 	}
-	return strings.Trim(string(output), "\"\n"), nil
+
+	revision := strings.Trim(string(output), "\"'\n")
+	if revision == "" {
+		return "", fmt.Errorf("empty nixpkgs revision")
+	}
+
+	return revision, nil
 }
 
-// ValidatePackage checks if a package name is valid
-func ValidatePackage(pkg string) bool {
-	if pkg == "" {
+// CheckFlakeSupport checks if Nix flakes are enabled
+func CheckFlakeSupport() bool {
+	cmd := exec.Command("nix", "--version")
+	output, err := cmd.Output()
+	if err != nil {
+		Debug("Failed to get Nix version: %v", err)
 		return false
 	}
 
-	// Allow alphanumeric, dash, dot, and underscore
-	validChars := "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_."
-
-	for _, c := range pkg {
-		if !strings.ContainsRune(validChars, c) {
+	version := string(output)
+	if strings.Contains(version, "nix (Nix) 2.4") || strings.Contains(version, "nix (Nix) 2.3") {
+		// Check if experimental features are enabled
+		cmd = exec.Command("nix", "show-config")
+		output, err = cmd.Output()
+		if err != nil {
+			Debug("Failed to get Nix config: %v", err)
 			return false
 		}
+
+		return strings.Contains(string(output), "experimental-features = nix-command flakes")
 	}
+
+	// Nix 2.5+ has flakes enabled by default
 	return true
-}
-
-// ExtractShellNixPackages extracts package names from shell.nix content
-func ExtractShellNixPackages(content string) []string {
-	var packages []string
-	lines := strings.Split(content, "\n")
-	inPackages := false
-
-	for _, line := range lines {
-		trimmed := strings.TrimSpace(line)
-		if strings.Contains(trimmed, "packages = with pkgs; [") {
-			inPackages = true
-			continue
-		}
-		if inPackages {
-			if strings.Contains(trimmed, "];") {
-				break
-			}
-			// Skip empty lines and comments
-			if trimmed != "" && !strings.HasPrefix(trimmed, "#") {
-				// Split by whitespace in case there are multiple packages per line
-				for _, pkg := range strings.Fields(trimmed) {
-					pkg = strings.TrimRight(pkg, ",") // Remove trailing comma if present
-					if pkg != "" {
-						packages = append(packages, pkg)
-					}
-				}
-			}
-		}
-	}
-	return packages
-}
-
-// ExtractFlakePackages extracts package names from flake.nix content
-func ExtractFlakePackages(content string) []string {
-	var packages []string
-	lines := strings.Split(content, "\n")
-
-	for _, line := range lines {
-		trimmed := strings.TrimSpace(line)
-		if strings.Contains(trimmed, "buildInputs = [") {
-			// Extract packages from the current line
-			start := strings.Index(trimmed, "[")
-			if start != -1 {
-				end := strings.Index(trimmed, "]")
-				if end != -1 {
-					pkgPart := trimmed[start+1 : end]
-					// Split by whitespace and clean each package name
-					for _, pkg := range strings.Fields(pkgPart) {
-						pkg = strings.TrimSpace(pkg)
-						if pkg != "" {
-							packages = append(packages, pkg)
-						}
-					}
-				}
-			}
-			break // Since we found and processed the buildInputs line
-		}
-	}
-	return packages
 }
 
 // GetInstalledPackages returns a list of installed packages
 func GetInstalledPackages() ([]string, error) {
-	cmd := exec.Command("nix-env", "--query")
+	cmd := exec.Command("nix-env", "--query", "--installed", "--json")
 	output, err := cmd.Output()
 	if err != nil {
-		return nil, fmt.Errorf("failed to query installed packages: %v", err)
+		return nil, fmt.Errorf("failed to get installed packages: %v", err)
 	}
 
-	lines := strings.Split(string(output), "\n")
-	var packages []string
-	for _, line := range lines {
-		if pkg := strings.TrimSpace(line); pkg != "" {
-			packages = append(packages, pkg)
-		}
+	var pkgInfo map[string]interface{}
+	if err := json.Unmarshal(output, &pkgInfo); err != nil {
+		return nil, fmt.Errorf("failed to parse package info: %v", err)
 	}
+
+	var packages []string
+	for name := range pkgInfo {
+		packages = append(packages, name)
+	}
+
 	return packages, nil
+}
+
+// UpdateChannel updates the Nix channel
+func UpdateChannel() error {
+	cmd := exec.Command("nix-channel", "--update")
+	if output, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("failed to update channel: %v\nOutput: %s", err, output)
+	}
+	return nil
+}
+
+// CollectGarbage runs the Nix garbage collector
+func CollectGarbage() error {
+	cmd := exec.Command("nix-collect-garbage", "-d")
+	if output, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("failed to collect garbage: %v\nOutput: %s", err, output)
+	}
+	return nil
+}
+
+// GetSystemInfo returns information about the Nix installation
+func GetSystemInfo() (map[string]string, error) {
+	info := make(map[string]string)
+
+	// Get Nix version
+	cmd := exec.Command("nix", "--version")
+	if output, err := cmd.Output(); err == nil {
+		info["nix_version"] = strings.TrimSpace(string(output))
+	}
+
+	// Get channel info
+	if channel, err := GetChannelInfo(); err == nil {
+		info["channel"] = channel
+	}
+
+	// Get nixpkgs revision
+	if revision, err := GetNixpkgsRevision(); err == nil {
+		info["nixpkgs_revision"] = revision
+	}
+
+	// Get system features
+	info["flakes_enabled"] = fmt.Sprintf("%v", CheckFlakeSupport())
+
+	return info, nil
 }

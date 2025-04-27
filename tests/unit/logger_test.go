@@ -2,267 +2,159 @@ package unit
 
 import (
 	"bytes"
-	"io"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
-	"github.com/mdaashir/NSM/utils"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"../../utils"
 )
 
-// captureOutput captures stdout/stderr output during test execution
-func captureOutput(f func()) (string, string) {
-	// Save original stdout/stderr
-	originalStdout := os.Stdout
-	originalStderr := os.Stderr
-
-	// Create pipes for capturing output
-	rOut, wOut, _ := os.Pipe()
-	rErr, wErr, _ := os.Pipe()
-
-	os.Stdout = wOut
-	os.Stderr = wErr
-
-	// Run the function that generates output
-	f()
-
-	// Close writers and restore original stdout/stderr
-	err := wOut.Close()
-	if err != nil {
-		return "", ""
-	}
-	err = wErr.Close()
-	if err != nil {
-		return "", ""
-	}
-	os.Stdout = originalStdout
-	os.Stderr = originalStderr
-
-	// Read captured output
-	var stdout, stderr bytes.Buffer
-	_, err = io.Copy(&stdout, rOut)
-	if err != nil {
-		return "", ""
-	}
-	_, err = io.Copy(&stderr, rErr)
-	if err != nil {
-		return "", ""
-	}
-
-	return stdout.String(), stderr.String()
-}
-
 func TestLogger(t *testing.T) {
-	tests := []struct {
-		name          string
-		debug         bool
-		quiet         bool
-		logFunc       func(string, ...interface{})
-		message       string
-		expectStdout  bool
-		expectStderr  bool
-		expectInDebug bool
-	}{
-		{
-			name:          "debug message with debug enabled",
-			debug:         true,
-			quiet:         false,
-			logFunc:       utils.Debug,
-			message:       "debug message",
-			expectStdout:  true,
-			expectStderr:  false,
-			expectInDebug: true,
-		},
-		{
-			name:          "debug message with debug disabled",
-			debug:         false,
-			quiet:         false,
-			logFunc:       utils.Debug,
-			message:       "debug message",
-			expectStdout:  false,
-			expectStderr:  false,
-			expectInDebug: false,
-		},
-		{
-			name:          "error message in quiet mode",
-			debug:         false,
-			quiet:         true,
-			logFunc:       utils.Error,
-			message:       "error message",
-			expectStdout:  false,
-			expectStderr:  true,
-			expectInDebug: false,
-		},
-		{
-			name:          "info message in quiet mode",
-			debug:         false,
-			quiet:         true,
-			logFunc:       utils.Info,
-			message:       "info message",
-			expectStdout:  false,
-			expectStderr:  false,
-			expectInDebug: false,
-		},
-		{
-			name:          "success message",
-			debug:         false,
-			quiet:         false,
-			logFunc:       utils.Success,
-			message:       "success message",
-			expectStdout:  true,
-			expectStderr:  false,
-			expectInDebug: false,
-		},
-		{
-			name:          "warning message",
-			debug:         false,
-			quiet:         false,
-			logFunc:       utils.Warn,
-			message:       "warning message",
-			expectStdout:  true,
-			expectStderr:  false,
-			expectInDebug: false,
-		},
-		{
-			name:          "tip message",
-			debug:         false,
-			quiet:         false,
-			logFunc:       utils.Tip,
-			message:       "tip message",
-			expectStdout:  true,
-			expectStderr:  false,
-			expectInDebug: false,
-		},
-	}
+	tmpDir := t.TempDir()
+	logFile := filepath.Join(tmpDir, "test.log")
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			utils.ConfigureLogger(tt.debug, tt.quiet)
+	// Create new logger with small max size to test rotation
+	logger, err := utils.NewLogger(logFile, utils.DEBUG, 100)
+	require.NoError(t, err)
+	defer logger.Close()
 
-			stdout, stderr := captureOutput(func() {
-				tt.logFunc(tt.message)
-			})
+	// Test all log levels
+	logger.Debug("debug message")
+	logger.Info("info message")
+	logger.Warn("warn message")
+	logger.Error("error message")
 
-			// Check stdout
-			hasStdout := stdout != ""
-			if hasStdout != tt.expectStdout {
-				t.Errorf("stdout output = %v, want %v", hasStdout, tt.expectStdout)
-			}
+	// Read log file contents
+	content, err := os.ReadFile(logFile)
+	require.NoError(t, err)
 
-			// Check stderr
-			hasStderr := stderr != ""
-			if hasStderr != tt.expectStderr {
-				t.Errorf("stderr output = %v, want %v", hasStderr, tt.expectStderr)
-			}
-
-			// Check message content
-			output := stdout
-			if tt.expectStderr {
-				output = stderr
-			}
-
-			if tt.expectStdout || tt.expectStderr {
-				if !strings.Contains(output, tt.message) {
-					t.Errorf("output %q does not contain message %q", output, tt.message)
-				}
-			}
-		})
-	}
+	logStr := string(content)
+	assert.Contains(t, logStr, "[DEBUG]")
+	assert.Contains(t, logStr, "debug message")
+	assert.Contains(t, logStr, "[INFO]")
+	assert.Contains(t, logStr, "info message")
+	assert.Contains(t, logStr, "[WARN]")
+	assert.Contains(t, logStr, "warn message")
+	assert.Contains(t, logStr, "[ERROR]")
+	assert.Contains(t, logStr, "error message")
 }
 
-func TestTable(t *testing.T) {
-	headers := []string{"Name", "Version"}
-	rows := [][]string{
-		{"gcc", "12.3.0"},
-		{"python3", "3.9.0"},
+func TestLogRotation(t *testing.T) {
+	tmpDir := t.TempDir()
+	logFile := filepath.Join(tmpDir, "rotation.log")
+
+	// Create logger with small max size
+	logger, err := utils.NewLogger(logFile, utils.DEBUG, 50)
+	require.NoError(t, err)
+	defer logger.Close()
+
+	// Write enough logs to trigger rotation
+	for i := 0; i < 10; i++ {
+		logger.Info("this is a long message that should trigger rotation")
 	}
 
-	stdout, _ := captureOutput(func() {
-		utils.Table(headers, rows)
-	})
+	// Check that backup files were created
+	files, err := os.ReadDir(tmpDir)
+	require.NoError(t, err)
 
-	// Check table formatting
-	lines := strings.Split(strings.TrimSpace(stdout), "\n")
-	if len(lines) != 4 { // Headers + separator + 2 rows
-		t.Errorf("Expected 4 lines in table output, got %d", len(lines))
-	}
-
-	// Check headers
-	if !strings.Contains(lines[0], headers[0]) || !strings.Contains(lines[0], headers[1]) {
-		t.Errorf("Table headers not found in output: %s", lines[0])
-	}
-
-	// Check the separator line
-	if !strings.Contains(lines[1], "-+-") {
-		t.Errorf("Table separator not found in output: %s", lines[1])
-	}
-
-	// Check data rows
-	for i, row := range rows {
-		line := lines[i+2]
-		for _, cell := range row {
-			if !strings.Contains(line, cell) {
-				t.Errorf("Row %d data %q not found in output: %s", i, cell, line)
-			}
+	backupFound := false
+	for _, file := range files {
+		if strings.HasPrefix(file.Name(), "rotation.log.") {
+			backupFound = true
+			break
 		}
 	}
+	assert.True(t, backupFound, "No backup log file found")
 }
 
-func TestNoColorOutput(t *testing.T) {
-	// Save original env and restore after a test
-	origNoColor := os.Getenv("NO_COLOR")
-	origTerm := os.Getenv("TERM")
-	defer func() {
-		err := os.Setenv("NO_COLOR", origNoColor)
-		if err != nil {
-			return
-		}
-		err = os.Setenv("TERM", origTerm)
-		if err != nil {
-			return
-		}
-	}()
-
-	tests := []struct {
-		name     string
-		setEnv   map[string]string
-		wantANSI bool
-	}{
-		{
-			name:     "normal output",
-			setEnv:   map[string]string{"NO_COLOR": "", "TERM": "xterm"},
-			wantANSI: true,
-		},
-		{
-			name:     "NO_COLOR set",
-			setEnv:   map[string]string{"NO_COLOR": "1", "TERM": "xterm"},
-			wantANSI: false,
-		},
-		{
-			name:     "dumb terminal",
-			setEnv:   map[string]string{"NO_COLOR": "", "TERM": "dumb"},
-			wantANSI: false,
-		},
+func TestLogLevelFiltering(t *testing.T) {
+	var buf bytes.Buffer
+	logger := &utils.Logger{
+		Out:   &buf,
+		Level: utils.INFO,
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Set a test environment
-			for k, v := range tt.setEnv {
-				err := os.Setenv(k, v)
-				if err != nil {
-					return
-				}
-			}
+	// Debug should be filtered out
+	logger.Debug("debug message")
+	assert.Empty(t, buf.String())
 
-			stdout, _ := captureOutput(func() {
-				utils.Success("test message")
-			})
+	// Info and above should be logged
+	logger.Info("info message")
+	assert.Contains(t, buf.String(), "info message")
 
-			hasANSI := strings.Contains(stdout, "\033[")
-			if hasANSI != tt.wantANSI {
-				t.Errorf("ANSI color codes present = %v, want %v", hasANSI, tt.wantANSI)
+	buf.Reset()
+	logger.Warn("warn message")
+	assert.Contains(t, buf.String(), "warn message")
+
+	buf.Reset()
+	logger.Error("error message")
+	assert.Contains(t, buf.String(), "error message")
+}
+
+func TestLoggerConcurrency(t *testing.T) {
+	tmpDir := t.TempDir()
+	logFile := filepath.Join(tmpDir, "concurrent.log")
+
+	logger, err := utils.NewLogger(logFile, utils.DEBUG, 1024*1024)
+	require.NoError(t, err)
+	defer logger.Close()
+
+	// Test concurrent logging
+	done := make(chan bool)
+	for i := 0; i < 10; i++ {
+		go func(i int) {
+			for j := 0; j < 100; j++ {
+				logger.Info("concurrent log message %d-%d", i, j)
 			}
-		})
+			done <- true
+		}(i)
 	}
+
+	// Wait for all goroutines
+	for i := 0; i < 10; i++ {
+		<-done
+	}
+
+	// Verify log file exists and has content
+	content, err := os.ReadFile(logFile)
+	require.NoError(t, err)
+	assert.NotEmpty(t, content)
+}
+
+func TestLoggerClose(t *testing.T) {
+	tmpDir := t.TempDir()
+	logFile := filepath.Join(tmpDir, "close.log")
+
+	logger, err := utils.NewLogger(logFile, utils.DEBUG, 1024)
+	require.NoError(t, err)
+
+	// Write some logs
+	logger.Info("test message")
+
+	// Close logger
+	err = logger.Close()
+	require.NoError(t, err)
+
+	// Verify logs were written
+	content, err := os.ReadFile(logFile)
+	require.NoError(t, err)
+	assert.Contains(t, string(content), "test message")
+}
+
+func TestDefaultLogger(t *testing.T) {
+	logger1 := utils.GetLogger()
+	logger2 := utils.GetLogger()
+
+	// Should return same instance
+	assert.Same(t, logger1, logger2)
+
+	// Test global convenience functions
+	utils.Debug("debug message")
+	utils.Info("info message")
+	utils.Warn("warn message")
+	utils.Error("error message")
 }

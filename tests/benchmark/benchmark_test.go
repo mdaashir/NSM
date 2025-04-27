@@ -6,188 +6,166 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/mdaashir/NSM/cmd"
 	"github.com/mdaashir/NSM/tests/testutils"
-	"github.com/mdaashir/NSM/utils"
-	"github.com/spf13/viper"
 )
 
-// BenchmarkPackageOperations benchmarks common package operations
-func BenchmarkPackageOperations(b *testing.B) {
-	config, cleanup := testutils.CreateBenchConfig(b)
+func BenchmarkInitCommand(b *testing.B) {
+	tmpDir, cleanup := testutils.TempDir(b)
 	defer cleanup()
 
-	// Large shell.nix content for testing
-	largeShellContent := `{ pkgs ? import <nixpkgs> {} }:
-pkgs.mkShell {
-  packages = with pkgs; [
-    gcc
-    python3
-    nodejs
-    go
-    rust
-    cargo
-    git
-    vim
-    vscode
-    docker
-    kubernetes-helm
-    terraform
-    ansible
-    nginx
-    postgresql
-    redis
-    mongodb
-    mysql
-    php
-    ruby
-  ];
-}`
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		b.StopTimer()
+		os.RemoveAll(filepath.Join(tmpDir, "shell.nix"))
+		os.RemoveAll(filepath.Join(tmpDir, "flake.nix"))
+		b.StartTimer()
 
-	if err := os.WriteFile(filepath.Join(config.TempDir, "large-shell.nix"), []byte(largeShellContent), 0600); err != nil {
-		b.Fatal(err)
-	}
-
-	b.Run("ExtractPackages", func(b *testing.B) {
-		content, err := os.ReadFile(filepath.Join(config.TempDir, "large-shell.nix"))
-		if err != nil {
-			b.Fatal(err)
-		}
-
-		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
-			utils.ExtractShellNixPackages(string(content))
-		}
-	})
-
-	b.Run("ValidatePackage", func(b *testing.B) {
-		packages := []string{
-			"gcc", "python3", "invalid package",
-			"test-package", "package_with_underscore",
-		}
-
-		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
-			for _, pkg := range packages {
-				utils.ValidatePackage(pkg)
-			}
-		}
-	})
-}
-
-// BenchmarkFileOperations benchmarks file-related operations
-func BenchmarkFileOperations(b *testing.B) {
-	dir := testutils.CreateBenchTempDir(b)
-	defer func(path string) {
-		err := os.RemoveAll(path)
-		if err != nil {
-			b.Fatal(err)
-		}
-	}(dir)
-
-	b.Run("WriteFile", func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
-			path := filepath.Join(dir, "test.nix")
-			content := "{ pkgs ? import <nixpkgs> {} }: pkgs.mkShell {}"
-			if err := os.WriteFile(path, []byte(content), 0600); err != nil {
-				b.Fatal(err)
-			}
-		}
-	})
-
-	// Create test files
-	files := []string{"test1.txt", "test2.txt", "test3.txt"}
-	for _, f := range files {
-		if err := os.WriteFile(filepath.Join(dir, f), []byte("test content"), 0600); err != nil {
-			b.Fatal(err)
+		cmd.RootCmd.SetArgs([]string{"init"})
+		if err := cmd.RootCmd.Execute(); err != nil {
+			b.Fatalf("init command failed: %v", err)
 		}
 	}
-
-	b.Run("FileExists", func(b *testing.B) {
-		path := filepath.Join(dir, "test1.txt")
-		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
-			utils.FileExists(path)
-		}
-	})
-
-	b.Run("BackupFile", func(b *testing.B) {
-		path := filepath.Join(dir, "test2.txt")
-		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
-			err := utils.BackupFile(path)
-			if err != nil {
-				return
-			}
-			err = os.Remove(path + ".backup")
-			if err != nil {
-				return
-			}
-		}
-	})
 }
 
-// BenchmarkConfigOperations benchmarks configuration operations
+func BenchmarkAddPackage(b *testing.B) {
+	tmpDir, cleanup := testutils.TempDir(b)
+	defer cleanup()
+
+	// Setup initial shell.nix
+	cmd.RootCmd.SetArgs([]string{"init"})
+	if err := cmd.RootCmd.Execute(); err != nil {
+		b.Fatalf("init setup failed: %v", err)
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		cmd.RootCmd.SetArgs([]string{"add", "gcc"})
+		if err := cmd.RootCmd.Execute(); err != nil {
+			b.Fatalf("add command failed: %v", err)
+		}
+	}
+}
+
+func BenchmarkPackageSearch(b *testing.B) {
+	tmpDir, cleanup := testutils.TempDir(b)
+	defer cleanup()
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		cmd.RootCmd.SetArgs([]string{"search", "python"})
+		if err := cmd.RootCmd.Execute(); err != nil {
+			b.Fatalf("search command failed: %v", err)
+		}
+	}
+}
+
 func BenchmarkConfigOperations(b *testing.B) {
-	dir := testutils.CreateBenchTempDir(b)
-	defer func(path string) {
-		err := os.RemoveAll(path)
-		if err != nil {
-			b.Fatal(err)
-		}
-	}(dir)
+	tmpDir, cleanup := testutils.TempDir(b)
+	defer cleanup()
 
-	configPath := filepath.Join(dir, "config.yaml")
-	viper.SetConfigFile(configPath)
-	viper.Set("channel.url", "nixos-unstable")
-	viper.Set("shell.format", "shell.nix")
-	viper.Set("default.packages", []string{"gcc", "python3"})
-	viper.Set("config_version", "1.0.0")
-
-	if err := viper.WriteConfig(); err != nil {
-		b.Fatal(err)
-	}
-
-	b.Run("LoadConfig", func(b *testing.B) {
-		b.ResetTimer()
+	b.Run("ConfigSet", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			_, err := utils.LoadConfig()
-			if err != nil {
-				b.Fatal(err)
+			cmd.RootCmd.SetArgs([]string{"config", "set", "shell.format", "flake.nix"})
+			if err := cmd.RootCmd.Execute(); err != nil {
+				b.Fatalf("config set failed: %v", err)
 			}
 		}
 	})
 
-	b.Run("ValidateConfig", func(b *testing.B) {
-		b.ResetTimer()
+	b.Run("ConfigGet", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
-			utils.ValidateConfig()
+			cmd.RootCmd.SetArgs([]string{"config", "get", "shell.format"})
+			if err := cmd.RootCmd.Execute(); err != nil {
+				b.Fatalf("config get failed: %v", err)
+			}
 		}
 	})
 }
 
-// BenchmarkLogging benchmarks logging operations
-func BenchmarkLogging(b *testing.B) {
-	utils.ConfigureLogger(true, false)
-
-	messages := []struct {
-		level   string
-		message string
-		logFunc func(string, ...interface{})
-	}{
-		{"debug", "Debug message", utils.Debug},
-		{"info", "Info message", utils.Info},
-		{"success", "Success message", utils.Success},
-		{"warning", "Warning message", utils.Warn},
-		{"error", "Error message", utils.Error},
-		{"tip", "Tip message", utils.Tip},
+func BenchmarkFlakeOperations(b *testing.B) {
+	if !CheckFlakeSupport() {
+		b.Skip("Flakes not supported")
 	}
 
-	for _, m := range messages {
-		b.Run("Log"+m.level, func(b *testing.B) {
-			b.ResetTimer()
-			for i := 0; i < b.N; i++ {
-				m.logFunc(m.message)
+	tmpDir, cleanup := testutils.TempDir(b)
+	defer cleanup()
+
+	b.Run("FlakeInit", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			b.StopTimer()
+			os.RemoveAll(filepath.Join(tmpDir, "flake.nix"))
+			b.StartTimer()
+
+			cmd.RootCmd.SetArgs([]string{"init", "--flake"})
+			if err := cmd.RootCmd.Execute(); err != nil {
+				b.Fatalf("flake init failed: %v", err)
 			}
-		})
+		}
+	})
+
+	b.Run("FlakeUpdate", func(b *testing.B) {
+		// Setup flake.nix first
+		cmd.RootCmd.SetArgs([]string{"init", "--flake"})
+		if err := cmd.RootCmd.Execute(); err != nil {
+			b.Fatalf("flake setup failed: %v", err)
+		}
+
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			cmd.RootCmd.SetArgs([]string{"upgrade"})
+			if err := cmd.RootCmd.Execute(); err != nil {
+				b.Fatalf("flake update failed: %v", err)
+			}
+		}
+	})
+}
+
+func BenchmarkParallelOperations(b *testing.B) {
+	tmpDir, cleanup := testutils.TempDir(b)
+	defer cleanup()
+
+	// Setup initial files
+	cmd.RootCmd.SetArgs([]string{"init"})
+	if err := cmd.RootCmd.Execute(); err != nil {
+		b.Fatalf("init setup failed: %v", err)
+	}
+
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			cmd.RootCmd.SetArgs([]string{"add", "gcc"})
+			if err := cmd.RootCmd.Execute(); err != nil {
+				b.Fatalf("parallel operation failed: %v", err)
+			}
+		}
+	})
+}
+
+func BenchmarkLargeOperations(b *testing.B) {
+	tmpDir, cleanup := testutils.TempDir(b)
+	defer cleanup()
+
+	// Create large shell.nix with many packages
+	var packages []string
+	for i := 0; i < 100; i++ {
+		packages = append(packages, "gcc", "python3", "nodejs", "go")
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		b.StopTimer()
+		// Reset shell.nix
+		cmd.RootCmd.SetArgs([]string{"init"})
+		if err := cmd.RootCmd.Execute(); err != nil {
+			b.Fatalf("init failed: %v", err)
+		}
+
+		b.StartTimer()
+		for _, pkg := range packages {
+			cmd.RootCmd.SetArgs([]string{"add", pkg})
+			if err := cmd.RootCmd.Execute(); err != nil {
+				b.Fatalf("large operation failed: %v", err)
+			}
+		}
 	}
 }

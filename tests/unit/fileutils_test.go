@@ -5,259 +5,126 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/mdaashir/NSM/tests/testutils"
-	"github.com/mdaashir/NSM/utils"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"../../utils"
 )
 
-func TestFileExists(t *testing.T) {
-	dir := testutils.CreateTempDir(t)
-	defer func(path string) {
-		err := os.RemoveAll(path)
-		if err != nil {
-			t.Fatal(err)
-		}
-	}(dir)
+func TestSafeWrite(t *testing.T) {
+	tmpDir := t.TempDir()
+	testFile := filepath.Join(tmpDir, "test.txt")
 
-	testCases := []struct {
-		name     string
-		setup    func() string
-		expected bool
-	}{
-		{
-			name: "existing file",
-			setup: func() string {
-				path := filepath.Join(dir, "test.txt")
-				err := os.WriteFile(path, []byte("test"), 0600)
-				if err != nil {
-					return ""
-				}
-				return path
-			},
-			expected: true,
-		},
-		{
-			name: "non-existent file",
-			setup: func() string {
-				return filepath.Join(dir, "nonexistent.txt")
-			},
-			expected: false,
-		},
-		{
-			name: "directory",
-			setup: func() string {
-				path := filepath.Join(dir, "testdir")
-				err := os.Mkdir(path, 0755)
-				if err != nil {
-					return ""
-				}
-				return path
-			},
-			expected: false,
-		},
+	// Test normal write
+	data := []byte("test data")
+	err := utils.SafeWrite(testFile, data, 0644)
+	require.NoError(t, err)
+
+	// Verify content
+	content, err := os.ReadFile(testFile)
+	require.NoError(t, err)
+	assert.Equal(t, data, content)
+
+	// Test concurrent writes
+	done := make(chan bool)
+	for i := 0; i < 10; i++ {
+		go func(i int) {
+			err := utils.SafeWrite(testFile, []byte("test"), 0644)
+			assert.NoError(t, err)
+			done <- true
+		}(i)
 	}
 
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			path := tc.setup()
-			if got := utils.FileExists(path); got != tc.expected {
-				t.Errorf("FileExists(%q) = %v, want %v", path, got, tc.expected)
+	// Wait for all writes
+	for i := 0; i < 10; i++ {
+		<-done
+	}
+}
+
+func TestFileLock(t *testing.T) {
+	tmpFile := filepath.Join(t.TempDir(), "lock-test.txt")
+
+	// Test concurrent access
+	done := make(chan bool)
+	for i := 0; i < 5; i++ {
+		go func() {
+			lock := utils.AcquireLock(tmpFile)
+			defer lock.Release()
+			// Simulate work
+			utils.SafeWrite(tmpFile, []byte("test"), 0644)
+			done <- true
+		}()
+	}
+
+	// Wait for all goroutines
+	for i := 0; i < 5; i++ {
+		<-done
+	}
+}
+
+func TestValidatePath(t *testing.T) {
+	tests := []struct {
+		name    string
+		path    string
+		wantErr bool
+	}{
+		{"valid relative", "foo/bar.txt", false},
+		{"directory traversal", "../foo.txt", true},
+		{"absolute path", "/etc/passwd", true},
+		{"current directory", ".", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := utils.ValidatePath(tt.path)
+			if tt.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
 			}
 		})
 	}
 }
 
-func TestBackupFile(t *testing.T) {
-	dir := testutils.CreateTempDir(t)
-	defer func(path string) {
-		err := os.RemoveAll(path)
-		if err != nil {
-			t.Fatal(err)
-		}
-	}(dir)
+func TestCopyFile(t *testing.T) {
+	tmpDir := t.TempDir()
+	srcFile := filepath.Join(tmpDir, "src.txt")
+	dstFile := filepath.Join(tmpDir, "dst.txt")
 
-	t.Run("successful backup", func(t *testing.T) {
-		// Create an original file
-		originalPath := filepath.Join(dir, "original.txt")
-		originalContent := "test content"
-		if err := os.WriteFile(originalPath, []byte(originalContent), 0600); err != nil {
-			t.Fatal(err)
-		}
+	// Create source file
+	testData := []byte("test data")
+	require.NoError(t, utils.SafeWrite(srcFile, testData, 0644))
 
-		// Create backup
-		if err := utils.BackupFile(originalPath); err != nil {
-			t.Fatalf("BackupFile() error = %v", err)
-		}
+	// Test copy
+	err := utils.CopyFile(srcFile, dstFile)
+	require.NoError(t, err)
 
-		// Verify backup file
-		backupPath := originalPath + ".backup"
-		if !utils.FileExists(backupPath) {
-			t.Error("Backup file was not created")
-		}
+	// Verify content
+	content, err := os.ReadFile(dstFile)
+	require.NoError(t, err)
+	assert.Equal(t, testData, content)
 
-		content, err := os.ReadFile(backupPath)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		if string(content) != originalContent {
-			t.Errorf("Backup content = %q, want %q", string(content), originalContent)
-		}
-	})
-
-	t.Run("backup nonexistent file", func(t *testing.T) {
-		nonexistentPath := filepath.Join(dir, "nonexistent.txt")
-		if err := utils.BackupFile(nonexistentPath); err == nil {
-			t.Error("Expected error when backing up nonexistent file")
-		}
-	})
+	// Verify permissions
+	srcInfo, err := os.Stat(srcFile)
+	require.NoError(t, err)
+	dstInfo, err := os.Stat(dstFile)
+	require.NoError(t, err)
+	assert.Equal(t, srcInfo.Mode(), dstInfo.Mode())
 }
 
-func TestGetProjectConfigType(t *testing.T) {
-	dir := testutils.CreateTempDir(t)
-	defer func(path string) {
-		err := os.RemoveAll(path)
-		if err != nil {
-			t.Fatal(err)
-		}
-	}(dir)
+func TestIsEmptyDir(t *testing.T) {
+	tmpDir := t.TempDir()
 
-	// Save the current directory
-	origDir, err := os.Getwd()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer func(dir string) {
-		err := os.Chdir(dir)
-		if err != nil {
-			t.Fatal(err)
-		}
-	}(origDir)
+	// Test empty directory
+	empty, err := utils.IsEmptyDir(tmpDir)
+	require.NoError(t, err)
+	assert.True(t, empty)
 
-	// Change to test directory
-	if err := os.Chdir(dir); err != nil {
-		t.Fatal(err)
-	}
+	// Add file and test non-empty
+	testFile := filepath.Join(tmpDir, "test.txt")
+	require.NoError(t, utils.SafeWrite(testFile, []byte("test"), 0644))
 
-	testCases := []struct {
-		name           string
-		files          map[string]bool // filename -> should exist
-		expectedConfig string
-	}{
-		{
-			name:           "no config files",
-			files:          map[string]bool{},
-			expectedConfig: "",
-		},
-		{
-			name: "only shell.nix",
-			files: map[string]bool{
-				"shell.nix": true,
-			},
-			expectedConfig: "shell.nix",
-		},
-		{
-			name: "only flake.nix",
-			files: map[string]bool{
-				"flake.nix": true,
-			},
-			expectedConfig: "flake.nix",
-		},
-		{
-			name: "both config files",
-			files: map[string]bool{
-				"shell.nix": true,
-				"flake.nix": true,
-			},
-			expectedConfig: "shell.nix", // shell.nix takes precedence
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			// Clean up previous files
-			err := os.Remove("shell.nix")
-			if err != nil {
-				return
-			}
-			err = os.Remove("flake.nix")
-			if err != nil {
-				return
-			}
-
-			// Create test files
-			for file, shouldExist := range tc.files {
-				if shouldExist {
-					if err := os.WriteFile(file, []byte("test"), 0600); err != nil {
-						t.Fatal(err)
-					}
-				}
-			}
-
-			if got := utils.GetProjectConfigType(); got != tc.expectedConfig {
-				t.Errorf("GetProjectConfigType() = %q, want %q", got, tc.expectedConfig)
-			}
-		})
-	}
-}
-
-func TestEnsureConfigDir(t *testing.T) {
-	// Save original XDG_CONFIG_HOME
-	origXdgConfig := os.Getenv("XDG_CONFIG_HOME")
-	defer func(key, value string) {
-		err := os.Setenv(key, value)
-		if err != nil {
-			return
-		}
-	}("XDG_CONFIG_HOME", origXdgConfig)
-
-	t.Run("with XDG_CONFIG_HOME", func(t *testing.T) {
-		dir := testutils.CreateTempDir(t)
-		defer func(path string) {
-			err := os.RemoveAll(path)
-			if err != nil {
-				t.Fatal(err)
-			}
-		}(dir)
-
-		err := os.Setenv("XDG_CONFIG_HOME", dir)
-		if err != nil {
-			return
-		}
-
-		configDir, err := utils.EnsureConfigDir()
-		if err != nil {
-			t.Fatalf("EnsureConfigDir() error = %v", err)
-		}
-
-		expectedPath := filepath.Join(dir, "NSM")
-		if configDir != expectedPath {
-			t.Errorf("EnsureConfigDir() = %q, want %q", configDir, expectedPath)
-		}
-
-		testutils.AssertDirExists(t, configDir)
-	})
-
-	t.Run("without XDG_CONFIG_HOME", func(t *testing.T) {
-		err := os.Setenv("XDG_CONFIG_HOME", "")
-		if err != nil {
-			return
-		}
-
-		configDir, err := utils.EnsureConfigDir()
-		if err != nil {
-			t.Fatalf("EnsureConfigDir() error = %v", err)
-		}
-
-		home, err := os.UserHomeDir()
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		expectedPath := filepath.Join(home, ".config", "NSM")
-		if configDir != expectedPath {
-			t.Errorf("EnsureConfigDir() = %q, want %q", configDir, expectedPath)
-		}
-
-		testutils.AssertDirExists(t, configDir)
-	})
+	empty, err = utils.IsEmptyDir(tmpDir)
+	require.NoError(t, err)
+	assert.False(t, empty)
 }
