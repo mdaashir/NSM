@@ -88,12 +88,12 @@ func AssertDirExists(t *testing.T, path string) {
 func CreateMockCmd(t *testing.T, name, output string, exitCode int) string {
 	t.Helper()
 	content := fmt.Sprintf(`#!/bin/sh
-echo "%s"
+echo '%s'
 exit %d
 `, output, exitCode)
 
 	mockPath := filepath.Join(os.TempDir(), name)
-	if err := os.WriteFile(mockPath, []byte(content), 0600); err != nil {
+	if err := os.WriteFile(mockPath, []byte(content), 0755); err != nil {
 		t.Fatal(err)
 	}
 	return mockPath

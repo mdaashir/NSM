@@ -41,13 +41,20 @@ func TestCheckFlakeSupport(t *testing.T) {
 		mockPath := testutils.CreateMockCmd(t, "nix", "nix (Nix) 2.4.0", 0)
 		defer os.Remove(mockPath)
 
-		// Update PATH to include mock binary directory first
+		// Update PATH to include mock binary directory as first entry
 		oldPath := os.Getenv("PATH")
-		newPath := filepath.Dir(mockPath)
-		if oldPath != "" {
-			newPath = newPath + string(os.PathListSeparator) + oldPath
+		mockDir := filepath.Dir(mockPath)
+		if err := os.Chmod(mockPath, 0755); err != nil {
+			t.Fatal(err)
 		}
-		os.Setenv("PATH", newPath)
+
+		newPath := mockDir
+		if oldPath != "" {
+			newPath = mockDir + string(os.PathListSeparator) + oldPath
+		}
+		if err := os.Setenv("PATH", newPath); err != nil {
+			t.Fatal(err)
+		}
 		defer os.Setenv("PATH", oldPath)
 
 		if !utils.CheckFlakeSupport() {
@@ -59,13 +66,20 @@ func TestCheckFlakeSupport(t *testing.T) {
 		mockPath := testutils.CreateMockCmd(t, "nix", "nix (Nix) 2.3.0", 0)
 		defer os.Remove(mockPath)
 
-		// Update PATH to include mock binary directory first
+		// Update PATH to include mock binary directory as first entry
 		oldPath := os.Getenv("PATH")
-		newPath := filepath.Dir(mockPath)
-		if oldPath != "" {
-			newPath = newPath + string(os.PathListSeparator) + oldPath
+		mockDir := filepath.Dir(mockPath)
+		if err := os.Chmod(mockPath, 0755); err != nil {
+			t.Fatal(err)
 		}
-		os.Setenv("PATH", newPath)
+
+		newPath := mockDir
+		if oldPath != "" {
+			newPath = mockDir + string(os.PathListSeparator) + oldPath
+		}
+		if err := os.Setenv("PATH", newPath); err != nil {
+			t.Fatal(err)
+		}
 		defer os.Setenv("PATH", oldPath)
 
 		if utils.CheckFlakeSupport() {
@@ -124,13 +138,20 @@ func TestGetNixVersion(t *testing.T) {
 	mockPath := testutils.CreateMockCmd(t, "nix", expectedVersion, 0)
 	defer os.Remove(mockPath)
 
-	// Update PATH to include mock binary directory first
+	// Update PATH to include mock binary directory
 	oldPath := os.Getenv("PATH")
-	newPath := filepath.Dir(mockPath)
-	if oldPath != "" {
-		newPath = newPath + string(os.PathListSeparator) + oldPath
+	mockDir := filepath.Dir(mockPath)
+	if err := os.Chmod(mockPath, 0755); err != nil {
+		t.Fatal(err)
 	}
-	os.Setenv("PATH", newPath)
+
+	newPath := mockDir
+	if oldPath != "" {
+		newPath = mockDir + string(os.PathListSeparator) + oldPath
+	}
+	if err := os.Setenv("PATH", newPath); err != nil {
+		t.Fatal(err)
+	}
 	defer os.Setenv("PATH", oldPath)
 
 	version, err := utils.GetNixVersion()
@@ -146,23 +167,30 @@ func TestGetNixVersion(t *testing.T) {
 func TestGetPackageVersion(t *testing.T) {
 	// Create a mock nix-env command that returns package info in JSON format
 	mockOutput := `{
-		"nixpkgs.gcc": {
-			"name": "gcc-12.3.0",
-			"version": "12.3.0",
-			"system": "x86_64-linux",
-			"outPath": "/nix/store/...-gcc-12.3.0"
-		}
-	}`
+        "nixpkgs.gcc": {
+            "name": "gcc-12.3.0",
+            "version": "12.3.0",
+            "system": "x86_64-linux",
+            "outPath": "/nix/store/...-gcc-12.3.0"
+        }
+    }`
 	mockPath := testutils.CreateMockCmd(t, "nix-env", mockOutput, 0)
 	defer os.Remove(mockPath)
 
-	// Update PATH to include mock binary directory first
+	// Update PATH to include mock binary directory
 	oldPath := os.Getenv("PATH")
-	newPath := filepath.Dir(mockPath)
-	if oldPath != "" {
-		newPath = newPath + string(os.PathListSeparator) + oldPath
+	mockDir := filepath.Dir(mockPath)
+	if err := os.Chmod(mockPath, 0755); err != nil {
+		t.Fatal(err)
 	}
-	os.Setenv("PATH", newPath)
+
+	newPath := mockDir
+	if oldPath != "" {
+		newPath = mockDir + string(os.PathListSeparator) + oldPath
+	}
+	if err := os.Setenv("PATH", newPath); err != nil {
+		t.Fatal(err)
+	}
 	defer os.Setenv("PATH", oldPath)
 
 	version, err := utils.GetPackageVersion("gcc")
