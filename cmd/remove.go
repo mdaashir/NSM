@@ -4,22 +4,88 @@ Copyright © 2025 Mohamed Aashir S <s.mohamedaashir@gmail.com>
 package cmd
 
 import (
-	"bufio"
-	"fmt"
 	"os"
 	"strings"
 
+	"github.com/mdaashir/NSM/utils"
 	"github.com/spf13/cobra"
 )
 
-// removeCmd represents the remove command
+// removePackagesFromShellNix removes packages from shell.nix
+func removePackagesFromShellNix(content string, toRemove map[string]bool) (string, int) {
+	lines := strings.Split(content, "\n")
+	result := []string{}
+	inPackages := false
+	removed := 0
+
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if strings.Contains(trimmed, "packages = with pkgs; [") {
+			inPackages = true
+			result = append(result, line)
+			continue
+		}
+		if inPackages {
+			if strings.Contains(trimmed, "];") {
+				inPackages = false
+				result = append(result, line)
+				continue
+			}
+			pkgName := strings.Fields(trimmed)
+			if len(pkgName) > 0 {
+				name := pkgName[0]
+				if toRemove[name] {
+					removed++
+					continue
+				}
+			}
+		}
+		result = append(result, line)
+	}
+	return strings.Join(result, "\n"), removed
+}
+
+// removePackagesFromFlake removes packages from flake.nix
+func removePackagesFromFlake(content string, toRemove map[string]bool) (string, int) {
+	lines := strings.Split(content, "\n")
+	result := []string{}
+	inBuildInputs := false
+	removed := 0
+
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if strings.Contains(trimmed, "buildInputs") {
+			inBuildInputs = true
+			result = append(result, line)
+			continue
+		}
+		if inBuildInputs && strings.Contains(trimmed, "];") {
+			inBuildInputs = false
+			result = append(result, line)
+			continue
+		}
+		if inBuildInputs {
+			pkgName := strings.Fields(trimmed)
+			if len(pkgName) > 0 {
+				name := pkgName[0]
+				if toRemove[name] {
+					removed++
+					continue
+				}
+			}
+		}
+		result = append(result, line)
+	}
+	return strings.Join(result, "\n"), removed
+}
+
 var removeCmd = &cobra.Command{
 	Use:   "remove [packages...]",
 	Short: "Remove one or more packages from the nix environment",
 	Long: `Remove packages from your Nix development environment.
 
 This command will:
-- Remove specified packages from shell.nix
+- Remove specified packages from shell.nix or flake.nix
 - Keep the environment consistent
 - Preserve other package configurations
 - Handle multiple package removal safely
@@ -29,67 +95,66 @@ Usage:
 
 Examples:
   nsm remove gcc              # Remove single package
-  nsm remove python3 nodejs   # Remove multiple packages
-
-Note: This only removes packages from your configuration.
-Use 'nsm clean' to free up disk space afterward.`,
+  nsm remove python3 nodejs   # Remove multiple packages`,
 	Args: cobra.MinimumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-		fileName := "shell.nix"
-
-		data, err := os.Open(fileName)
-		if err != nil {
-			fmt.Println("❌ Error opening shell.nix:", err)
+		// Check for Nix installation
+		if err := utils.CheckNixInstallation(); err != nil {
+			utils.Error("Nix is not installed. Please install Nix first!")
 			return
 		}
-		defer data.Close()
 
-		scanner := bufio.NewScanner(data)
-		lines := []string{}
-		inPackages := false
-
+		// Create map of packages to remove
 		toRemove := make(map[string]bool)
 		for _, pkg := range args {
 			toRemove[pkg] = true
 		}
 
-		for scanner.Scan() {
-			line := scanner.Text()
-			trimmed := strings.TrimSpace(line)
-
-			if strings.Contains(trimmed, "packages = with pkgs; [") {
-				inPackages = true
-				lines = append(lines, line)
-				continue
-			}
-			if inPackages {
-				if strings.Contains(trimmed, "];") {
-					inPackages = false
-					lines = append(lines, line)
-					continue
-				}
-				// Skip package if it matches any argument
-				pkgName := strings.Fields(trimmed)
-				if len(pkgName) > 0 {
-					name := pkgName[0]
-					if toRemove[name] {
-						continue // skip this package
-					}
-				}
-				lines = append(lines, line)
-			} else {
-				lines = append(lines, line)
-			}
-		}
-
-		// Rewrite the file
-		err = os.WriteFile(fileName, []byte(strings.Join(lines, "\n")), 0644)
-		if err != nil {
-			fmt.Println("❌ Error writing to shell.nix:", err)
+		configType := utils.GetProjectConfigType()
+		if configType == "" {
+			utils.Error("No shell.nix or flake.nix found")
+			utils.Tip("Run 'nsm init' to create a new environment")
 			return
 		}
 
-		fmt.Println("✅ Removed package(s):", strings.Join(args, ", "))
+		utils.Debug("Found configuration file: %s", configType)
+
+		// Read configuration file
+		content, err := os.ReadFile(configType)
+		if err != nil {
+			utils.Error("Error reading %s: %v", configType, err)
+			return
+		}
+
+		var newContent string
+		var removed int
+
+		if configType == "shell.nix" {
+			newContent, removed = removePackagesFromShellNix(string(content), toRemove)
+		} else {
+			newContent, removed = removePackagesFromFlake(string(content), toRemove)
+		}
+
+		if removed == 0 {
+			utils.Warn("No packages were found to remove")
+			return
+		}
+
+		// Create backup before modifying
+		if err := utils.BackupFile(configType); err != nil {
+			utils.Error("Failed to create backup: %v", err)
+			return
+		}
+
+		// Write changes
+		if err := os.WriteFile(configType, []byte(newContent), 0644); err != nil {
+			utils.Error("Error writing %s: %v", configType, err)
+			return
+		}
+
+		utils.Success("Removed %d package(s) from %s", removed, configType)
+		utils.Success("Backup created: %s.backup", configType)
+		utils.Tip("Run 'nsm run' to enter the updated shell")
 	},
 }
 

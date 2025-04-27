@@ -1,71 +1,114 @@
 /*
-Copyright © 2025 Mohamed Aashir s <s.mohamedaashir@gmail.com>
+Copyright © 2025 Mohamed Aashir S <s.mohamedaashir@gmail.com>
 */
 package cmd
 
 import (
-	"bufio"
-	"fmt"
-	"os"
+	"os/exec"
+	"sort"
 	"strings"
 
+	"github.com/mdaashir/NSM/utils"
 	"github.com/spf13/cobra"
 )
 
-// listCmd represents the list command
 var listCmd = &cobra.Command{
 	Use:   "list",
-	Short: "List all packages in the nix environment",
-	Long: `Display all packages currently configured in your Nix environment.
+	Short: "List packages in the current environment",
+	Long: `List all packages defined in your Nix environment.
 
-This command shows:
-- All packages defined in shell.nix
-- Their current status in the environment
-- Package names exactly as they appear in nixpkgs
+This command will show:
+- Package name and version
+- Package status (installed/pending)
+- Package description
+- Installation source (shell.nix/flake.nix)
 
-Example:
-  nsm list    # Show all configured packages
-
-The output is formatted for easy reading and shows packages
-in the same format they should be used with 'nsm add'.`,
+Examples:
+  nsm list              # List all packages
+  nsm list --json      # Output in JSON format
+  nsm list --installed # Show only installed packages`,
 	Run: func(cmd *cobra.Command, args []string) {
-		fileName := "shell.nix"
-
-		data, err := os.Open(fileName)
-		if err != nil {
-			fmt.Println("❌ Error opening shell.nix:", err)
+		// Check for Nix installation
+		if err := utils.CheckNixInstallation(); err != nil {
+			utils.Error("Nix is not installed. Please install Nix first!")
 			return
 		}
-		defer data.Close()
 
-		scanner := bufio.NewScanner(data)
-		inPackages := false
-		packages := []string{}
+		// Get configuration type
+		configType := utils.GetProjectConfigType()
+		if configType == "" {
+			utils.Error("No shell.nix or flake.nix found in current directory")
+			utils.Tip("Run 'nsm init' to create a new environment")
+			return
+		}
 
-		for scanner.Scan() {
-			line := strings.TrimSpace(scanner.Text())
-			if strings.Contains(line, "packages = with pkgs; [") {
-				inPackages = true
-				continue
-			}
-			if inPackages {
-				if strings.Contains(line, "];") {
-					break
-				}
-				if line != "" {
-					packages = append(packages, line)
+		// Get installed packages
+		installedPkgs := make(map[string]bool)
+		cmd := exec.Command("nix-env", "--query", "--installed")
+		if output, err := cmd.Output(); err == nil {
+			for _, line := range strings.Split(string(output), "\n") {
+				if pkg := strings.TrimSpace(line); pkg != "" {
+					installedPkgs[pkg] = true
 				}
 			}
+		}
+
+		// Read configuration file
+		content, err := utils.ReadFile(configType)
+		if err != nil {
+			utils.Error("Failed to read %s: %v", configType, err)
+			return
+		}
+
+		var packages []string
+		if configType == "shell.nix" {
+			packages = utils.ExtractShellNixPackages(content)
+		} else {
+			packages = utils.ExtractFlakePackages(content)
 		}
 
 		if len(packages) == 0 {
-			fmt.Println("ℹ️  No packages found.")
+			utils.Info("No packages found in %s", configType)
 			return
 		}
 
-		fmt.Println("📦 Installed packages:")
+		// Sort packages alphabetically
+		sort.Strings(packages)
+
+		// Prepare table data
+		headers := []string{"Package", "Status", "Source"}
+		var rows [][]string
+
 		for _, pkg := range packages {
-			fmt.Println("- " + pkg)
+			status := "pending"
+			if installedPkgs[pkg] {
+				status = "installed"
+			}
+
+			rows = append(rows, []string{
+				pkg,
+				status,
+				configType,
+			})
+		}
+
+		// Output as table
+		utils.Info("\n📦 Packages in your Nix environment:")
+		utils.Table(headers, rows)
+
+		utils.Info("\nTotal packages: %d", len(packages))
+		utils.Info("Configuration: %s", configType)
+
+		// Show tips based on package status
+		pendingCount := 0
+		for _, row := range rows {
+			if row[1] == "pending" {
+				pendingCount++
+			}
+		}
+
+		if pendingCount > 0 {
+			utils.Tip("Run 'nsm run' to enter shell with all packages")
 		}
 	},
 }

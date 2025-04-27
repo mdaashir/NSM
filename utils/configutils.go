@@ -1,0 +1,86 @@
+package utils
+
+import (
+	"fmt"
+
+	"github.com/spf13/viper"
+)
+
+// ConfigValidationError represents a configuration validation error
+type ConfigValidationError struct {
+	Key     string
+	Message string
+}
+
+func (e ConfigValidationError) Error() string {
+	return fmt.Sprintf("config validation error for %s: %s", e.Key, e.Message)
+}
+
+// ValidateConfig checks if the configuration has all required values
+func ValidateConfig() []ConfigValidationError {
+	var errors []ConfigValidationError
+
+	// Check channel URL
+	channelURL := viper.GetString("channel.url")
+	if channelURL == "" {
+		errors = append(errors, ConfigValidationError{
+			Key:     "channel.url",
+			Message: "channel URL is required",
+		})
+	}
+
+	// Check shell format
+	shellFormat := viper.GetString("shell.format")
+	if shellFormat != "shell.nix" && shellFormat != "flake.nix" {
+		errors = append(errors, ConfigValidationError{
+			Key:     "shell.format",
+			Message: "shell format must be either 'shell.nix' or 'flake.nix'",
+		})
+	}
+
+	// Check default packages format
+	defaultPkgs := viper.GetStringSlice("default.packages")
+	if defaultPkgs == nil {
+		errors = append(errors, ConfigValidationError{
+			Key:     "default.packages",
+			Message: "default packages must be a list (can be empty)",
+		})
+	}
+
+	return errors
+}
+
+// GetConfigSummary returns a human-readable summary of the current configuration
+func GetConfigSummary() map[string]interface{} {
+	return map[string]interface{}{
+		"channel.url":      viper.GetString("channel.url"),
+		"shell.format":     viper.GetString("shell.format"),
+		"default.packages": viper.GetStringSlice("default.packages"),
+		"config_file":      viper.ConfigFileUsed(),
+		"environment":      viper.GetString("environment"),
+		"flakes_enabled":   CheckFlakeSupport(),
+		"nix_installed":    CheckNixInstallation() == nil,
+		"config_validated": len(ValidateConfig()) == 0,
+	}
+}
+
+// MigrateConfig handles configuration format changes
+func MigrateConfig() error {
+	// Check if we need to migrate
+	if !viper.IsSet("config_version") {
+		// Set initial version
+		viper.Set("config_version", "1.0.0")
+
+		// Migrate any old settings
+		if viper.IsSet("channel") && !viper.IsSet("channel.url") {
+			viper.Set("channel.url", viper.Get("channel"))
+			viper.Set("channel", nil)
+		}
+
+		if err := viper.WriteConfig(); err != nil {
+			return fmt.Errorf("failed to save migrated config: %v", err)
+		}
+	}
+
+	return nil
+}

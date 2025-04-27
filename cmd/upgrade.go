@@ -4,13 +4,12 @@ Copyright © 2025 Mohamed Aashir S <s.mohamedaashir@gmail.com>
 package cmd
 
 import (
-	"fmt"
 	"os/exec"
 
+	"github.com/mdaashir/NSM/utils"
 	"github.com/spf13/cobra"
 )
 
-// upgradeCmd represents the upgrade command
 var upgradeCmd = &cobra.Command{
 	Use:   "upgrade",
 	Short: "Update nixpkgs channel",
@@ -28,20 +27,47 @@ Example:
 Note: After upgrading, you may need to rebuild your
 environment by running 'nsm run' again.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("🔄 Updating nixpkgs channel...")
-
-		// Run `nix-channel --update`
-		c := exec.Command("nix-channel", "--update")
-		c.Stdout = cmd.OutOrStdout()
-		c.Stderr = cmd.ErrOrStderr()
-
-		err := c.Run()
-		if err != nil {
-			fmt.Println("❌ Error updating nixpkgs:", err)
+		// Check for Nix installation
+		if err := utils.CheckNixInstallation(); err != nil {
+			utils.Error("Nix is not installed. Please install Nix first!")
 			return
 		}
 
-		fmt.Println("✅ nixpkgs channel updated!")
+		// Get current channel info for comparison
+		oldChannel, err := utils.GetChannelInfo()
+		if err != nil {
+			utils.Error("Could not get current channel info: %v", err)
+			return
+		}
+
+		utils.Info("🔄 Updating nixpkgs channel...")
+
+		// Run nix-channel --update
+		c := exec.Command("nix-channel", "--update")
+		output, err := c.CombinedOutput()
+		if err != nil {
+			utils.Error("Failed to update nixpkgs: %v", err)
+			utils.Tip("Try running 'nsm doctor' to check your installation")
+			return
+		}
+
+		// Get new channel info
+		newChannel, err := utils.GetChannelInfo()
+		if err != nil {
+			utils.Error("Could not get updated channel info: %v", err)
+			return
+		}
+
+		utils.Success("Updated nixpkgs channel!")
+		if len(output) > 0 {
+			utils.Debug("Update details:\n%s", string(output))
+		}
+
+		if oldChannel != newChannel {
+			utils.Info("Channel changed from:\n%s\nto:\n%s", oldChannel, newChannel)
+		}
+
+		utils.Tip("Run 'nsm run' to enter shell with updated packages")
 	},
 }
 

@@ -4,13 +4,12 @@ Copyright © 2025 Mohamed Aashir S <s.mohamedaashir@gmail.com>
 package cmd
 
 import (
-	"fmt"
 	"os/exec"
 
+	"github.com/mdaashir/NSM/utils"
 	"github.com/spf13/cobra"
 )
 
-// cleanCmd represents the clean command
 var cleanCmd = &cobra.Command{
 	Use:   "clean",
 	Short: "Clean up unused nix packages and free space",
@@ -28,16 +27,28 @@ Example:
 Note: This operation is safe but irreversible. Make sure
 you don't need old generations before cleaning.`,
 	Run: func(cmd *cobra.Command, args []string) {
+		// Check for Nix installation
+		if err := utils.CheckNixInstallation(); err != nil {
+			utils.Error("Nix is not installed. Please install Nix first!")
+			return
+		}
+
+		utils.Info("🧹 Running garbage collection...")
+
 		// Run nix-collect-garbage
 		c := exec.Command("nix-collect-garbage", "-d")
 		output, err := c.CombinedOutput()
 		if err != nil {
-			fmt.Println("❌ Error cleaning nix packages:", err)
+			utils.Error("Failed to clean packages: %v", err)
+			utils.Tip("Try running 'nsm doctor' to check your installation")
 			return
 		}
 
-		fmt.Println("✅ Cleaned up nix packages!")
-		fmt.Printf("Details: %s\n", output)
+		utils.Success("Cleaned up Nix store successfully!")
+		if len(output) > 0 {
+			utils.Debug("Cleanup details:\n%s", string(output))
+		}
+		utils.Tip("Run 'nsm info' to check current system state")
 	},
 }
 

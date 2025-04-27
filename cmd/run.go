@@ -4,10 +4,10 @@ Copyright © 2025 Mohamed Aashir S <s.mohamedaashir@gmail.com>
 package cmd
 
 import (
-	"fmt"
 	"os"
 	"os/exec"
 
+	"github.com/mdaashir/NSM/utils"
 	"github.com/spf13/cobra"
 )
 
@@ -21,43 +21,73 @@ The command automatically detects and uses the appropriate method:
 - For shell.nix: Uses nix-shell
 - For flake.nix: Uses nix develop
 
+Options:
+  --pure    Run in pure mode (no inherited environment)
+
 Examples:
   nsm run            # Enter the development environment
-
-Inside the shell, you'll have access to all packages
-specified in your configuration file.
-
-Note: Make sure to run 'nsm init' first if you haven't
-created a configuration file yet.`,
+  nsm run --pure    # Enter a pure shell`,
 	Run: func(cmd *cobra.Command, args []string) {
-		if _, err := os.Stat("shell.nix"); err == nil {
-			fmt.Println("🚀 Launching nix-shell...")
-			c := exec.Command("nix-shell")
-			c.Stdout = os.Stdout
-			c.Stderr = os.Stderr
-			c.Stdin = os.Stdin
+		// Check for Nix installation
+		if err := utils.CheckNixInstallation(); err != nil {
+			utils.Error("Nix is not installed. Please install Nix first!")
+			return
+		}
 
-			err := c.Run()
-			if err != nil {
-				fmt.Println("❌ Error running nix-shell:", err)
-			}
-		} else if _, err := os.Stat("flake.nix"); err == nil {
-			fmt.Println("🚀 Launching nix develop...")
-			c := exec.Command("nix", "develop")
-			c.Stdout = os.Stdout
-			c.Stderr = os.Stderr
-			c.Stdin = os.Stdin
+		configType := utils.GetProjectConfigType()
+		if configType == "" {
+			utils.Error("No shell.nix or flake.nix found")
+			utils.Tip("Run 'nsm init' to create a new environment")
+			return
+		}
 
-			err := c.Run()
-			if err != nil {
-				fmt.Println("❌ Error running nix develop:", err)
+		utils.Debug("Using configuration file: %s", configType)
+
+		isPure, _ := cmd.Flags().GetBool("pure")
+		if isPure {
+			utils.Debug("Running in pure mode")
+		}
+
+		var c *exec.Cmd
+		if configType == "shell.nix" {
+			utils.Info("🚀 Launching nix-shell...")
+			cmdArgs := []string{}
+			if isPure {
+				cmdArgs = append(cmdArgs, "--pure")
 			}
+			c = exec.Command("nix-shell", cmdArgs...)
 		} else {
-			fmt.Println("❌ No shell.nix or flake.nix found. Run 'NSM init' first!")
+			utils.Info("🚀 Launching nix develop...")
+			if !utils.CheckFlakeSupport() {
+				utils.Error("Flakes are not enabled in your Nix configuration")
+				utils.Tip("Add 'experimental-features = nix-command flakes' to your Nix config")
+				return
+			}
+			cmdArgs := []string{"develop"}
+			if isPure {
+				cmdArgs = append(cmdArgs, "--pure")
+			}
+			c = exec.Command("nix", cmdArgs...)
+		}
+
+		// Setup command environment
+		c.Env = os.Environ()
+		c.Dir, _ = os.Getwd()
+		c.Stdout = os.Stdout
+		c.Stderr = os.Stderr
+		c.Stdin = os.Stdin
+
+		// Run the command
+		err := c.Run()
+		if err != nil {
+			utils.Error("Error running %s: %v", configType, err)
+			utils.Tip("Try running 'nsm doctor' to diagnose issues")
+			return
 		}
 	},
 }
 
 func init() {
+	runCmd.Flags().Bool("pure", false, "Run in pure mode (no inherited environment)")
 	rootCmd.AddCommand(runCmd)
 }

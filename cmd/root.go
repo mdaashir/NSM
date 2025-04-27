@@ -6,10 +6,11 @@ package cmd
 import (
 	"os"
 
+	"github.com/mdaashir/NSM/utils"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 )
 
-// rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
 	Use:   "NSM",
 	Short: "NSM (Nix Shell Manager) - A tool to manage Nix development environments",
@@ -32,21 +33,69 @@ Example Usage:
   nsm clean            # Clean up unused packages`,
 }
 
+var (
+	cfgFile   string
+	debugMode bool
+	quietMode bool
+)
+
+// Execute adds all child commands to the root command and sets flags appropriately.
 func Execute() {
-	err := rootCmd.Execute()
-	if err != nil {
+	// Initialize logger before executing
+	utils.ConfigureLogger(debugMode, quietMode)
+
+	if err := rootCmd.Execute(); err != nil {
+		utils.Error("Error executing command: %v", err)
 		os.Exit(1)
 	}
 }
 
 func init() {
-	// Here you will define your flags and configuration settings.
-	// Cobra supports persistent flags, which, if defined here,
-	// will be global for your application.
+	cobra.OnInitialize(setupConfig)
 
-	// rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.NSM.yaml)")
+	// Global flags
+	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.config/NSM/config.yaml)")
+	rootCmd.PersistentFlags().BoolVar(&debugMode, "debug", false, "enable debug output")
+	rootCmd.PersistentFlags().BoolVar(&quietMode, "quiet", false, "suppress non-error output")
 
-	// Cobra also supports local flags, which will only run
-	// when this action is called directly.
-	rootCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
+	// Remove default completion command
+	rootCmd.CompletionOptions.DisableDefaultCmd = true
+}
+
+// setupConfig reads in config file and ENV variables if set
+func setupConfig() {
+	if cfgFile != "" {
+		// Use config file from the flag
+		viper.SetConfigFile(cfgFile)
+	} else {
+		// Use utils to ensure config directory exists
+		configDir, err := utils.EnsureConfigDir()
+		if err != nil {
+			utils.Error("Error creating config directory: %v", err)
+			os.Exit(1)
+		}
+
+		viper.AddConfigPath(configDir)
+		viper.SetConfigType("yaml")
+		viper.SetConfigName("config")
+	}
+
+	// Read environment variables
+	viper.SetEnvPrefix("NSM")
+	viper.AutomaticEnv()
+
+	// Set default values
+	viper.SetDefault("channel.url", "nixos-unstable")
+	viper.SetDefault("shell.format", "shell.nix")
+
+	// Read the config file
+	if err := viper.ReadInConfig(); err != nil {
+		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
+			utils.Error("Error reading config file: %v", err)
+		} else {
+			utils.Debug("No config file found, using defaults")
+		}
+	} else {
+		utils.Debug("Using config file: %s", viper.ConfigFileUsed())
+	}
 }
