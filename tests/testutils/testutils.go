@@ -93,9 +93,16 @@ exit %d
 `, output, exitCode)
 
 	mockPath := filepath.Join(os.TempDir(), name)
-	if err := os.WriteFile(mockPath, []byte(content), 0755); err != nil {
+	// First create the file with secure permissions
+	if err := os.WriteFile(mockPath, []byte(content), 0600); err != nil {
 		t.Fatal(err)
 	}
+
+	// Then make it executable for testing
+	if err := os.Chmod(mockPath, 0700); err != nil {
+		t.Fatal(err)
+	}
+
 	return mockPath
 }
 
