@@ -1,3 +1,5 @@
+version: 1
+
 # Build settings
 builds:
   - env:
@@ -15,11 +17,11 @@ builds:
       - arm
       - 386
     goarm:
-      - 6
-      - 7
+      - '6'
+      - '7'
     ignore:
       - goos: darwin
-        goarch: 386
+        goarch: '386'
       - goos: darwin
         goarch: arm
     main: .
@@ -54,7 +56,7 @@ gomod:
 nfpms:
   - id: nsm-packages
     package_name: nsm
-    file_name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    file_name_template: '{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}'
     vendor: Mohamed Aashir S
     homepage: https://github.com/mdaashir/NSM
     maintainer: Mohamed Aashir S <s.mohamedaashir@gmail.com>
@@ -108,7 +110,8 @@ dockers:
     dockerfile: Dockerfile
     use: docker
     build_flag_templates:
-      - '--platform=linux/amd64,linux/arm64,linux/arm/v7'
+      - '--platform=linux/amd64'
+      - '--platform=linux/arm64'
     extra_files:
       - go.mod
       - go.sum
