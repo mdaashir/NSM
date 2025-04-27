@@ -57,10 +57,12 @@ func CheckFlakeSupport() bool {
 	if len(parts) < 3 {
 		return false
 	}
-	versionNum := strings.TrimSuffix(parts[2], ".0") // Remove trailing .0 if present
+
+	// Remove trailing ".0" from version if present
+	versionNum := strings.TrimSuffix(strings.TrimSuffix(parts[2], ")"), ".0")
 
 	// Check if version is >= 2.4
-	var major, minor int
+	major, minor := 0, 0
 	_, err = fmt.Sscanf(versionNum, "%d.%d", &major, &minor)
 	if err != nil {
 		return false

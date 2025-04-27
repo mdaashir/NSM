@@ -116,6 +116,7 @@ func MigrateConfig() error {
 		if viper.IsSet("channel") {
 			oldChannel := viper.Get("channel")
 			if str, ok := oldChannel.(string); ok {
+				// Clear old channel key and set new format
 				viper.Set("channel.url", str)
 				viper.Set("channel", nil)
 			}
