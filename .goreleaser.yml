@@ -43,9 +43,9 @@ builds:
 
 # Build cache settings
 gomod:
-  proxy: true
+  proxy: false
   env:
-    - GOPROXY=https://proxy.golang.org,direct
+    - GOPROXY=direct
     - GOSUMDB=sum.golang.org
     - GOPRIVATE=github.com/mdaashir/NSM
     - GO111MODULE=on
@@ -56,7 +56,7 @@ gomod:
 nfpms:
   - id: nsm-packages
     package_name: nsm
-    file_name_template: '{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}'
+    file_name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
     vendor: Mohamed Aashir S
     homepage: https://github.com/mdaashir/NSM
     maintainer: Mohamed Aashir S <s.mohamedaashir@gmail.com>

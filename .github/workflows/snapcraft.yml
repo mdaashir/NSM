@@ -1,5 +1,3 @@
-# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
-
 name: Snapcraft
 
 on:
@@ -29,10 +27,30 @@ jobs:
           sudo snap install snapcraft --classic
           sudo chown root:root /
 
+      # Login to Snapcraft
+      - name: Login to Snapcraft
+        run: |
+          mkdir -p ~/.config/snapcraft
+          echo "${{ secrets.SNAPCRAFT_EMAIL }}" > ~/.config/snapcraft/email
+          echo "${{ secrets.SNAPCRAFT_PASSWORD }}" > ~/.config/snapcraft/password
+          snapcraft login --with ~/.config/snapcraft/email < ~/.config/snapcraft/password
+          rm -f ~/.config/snapcraft/email ~/.config/snapcraft/password
+
+      # Register snap name if not already registered
+      - name: Register snap name
+        continue-on-error: true  # Continue if already registered
+        run: snapcraft register nsm
+
+      # Build the snap
       - uses: snapcore/action-build@v1
         id: build
-      - uses: snapcore/action-publish@v1
-        with:
-          store_login: ${{ secrets.SNAPCRAFT_TOKEN }}
-          snap: ${{ steps.build.outputs.snap }}
-          release: stable
+
+      # Push and release to store
+      - name: Push snap to store
+        run: |
+          snapcraft push ${{ steps.build.outputs.snap }} --release=stable
+
+      # Cleanup
+      - name: Cleanup credentials
+        if: always()
+        run: snapcraft logout
