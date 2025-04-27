@@ -1,6 +1,8 @@
 # Build settings
 builds:
-  - goos:
+  - env:
+      - CGO_ENABLED=0
+    goos:
       - linux
       - darwin
       - windows
@@ -8,13 +10,19 @@ builds:
       - amd64
     main: ./main.go
     binary: nsm
+    ldflags:
+      - -s -w
 
 # Archives settings
 archives:
-  - format: tar.gz
+  - id: nsm
+    name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}_v{{ .Version }}"
+    format_overrides:
+      - goos: windows
+        format: zip
     files:
-      - nsm
-    name_template: "{{ .Binary }}_{{ .Os }}_{{ .Arch }}_v{{ .Version }}"
+      - README.md
+      - LICENSE
 
 # Docker settings
 dockers:
@@ -25,6 +33,9 @@ dockers:
     build_flag_templates:
       - "--platform=linux/amd64"
     dockerfile: Dockerfile
+    extra_files:
+      - go.mod
+      - go.sum
 
 # Release settings
 changelog:
@@ -34,9 +45,26 @@ changelog:
       - "^docs:"
       - "^test:"
       - "^ci:"
+      - "^chore:"
+      - Merge pull request
+      - Merge branch
+
+# Customization
+project_name: nsm
 
 # GitHub release settings
 release:
   github:
     owner: mdaashir
     name: nsm
+  draft: false
+  prerelease: auto
+
+# Before build hooks
+before:
+  hooks:
+    - go mod tidy
+
+# Checksum settings
+checksum:
+  name_template: 'checksums.txt'

@@ -23,7 +23,7 @@ RUN --mount=type=cache,target=/go/pkg/mod \
 COPY . .
 
 # Build the application with optimizations
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-w -s" -o /nsm
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-w -s" -v -o /nsm ./main.go
 
 # Final stage
 FROM alpine:latest
