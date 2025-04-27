@@ -2,6 +2,7 @@ package unit
 
 import (
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/mdaashir/NSM/tests/testutils"
@@ -90,13 +91,40 @@ func TestConfigValidation(t *testing.T) {
 
 func TestMigrateConfig(t *testing.T) {
 	t.Run("migrate from no version", func(t *testing.T) {
-		// Remove version
+		// Set up test config with a temporary directory
+		dir := testutils.CreateTempDir(t)
+		defer func() {
+			err := os.RemoveAll(dir)
+			if err != nil {
+				t.Logf("Failed to cleanup test directory: %v", err)
+			}
+		}()
+
+		// Reset viper and set up new config
+		viper.Reset()
+		viper.SetConfigName("config")
+		viper.SetConfigType("yaml")
+		viper.AddConfigPath(dir)
+
+		// Write initial config file
+		configFile := filepath.Join(dir, "config.yaml")
+		err := os.WriteFile(configFile, []byte(""), 0600)
+		if err != nil {
+			t.Fatalf("Failed to create config file: %v", err)
+		}
+
+		// Set config file in viper
+		viper.SetConfigFile(configFile)
+
+		// Remove version for testing migration
 		viper.Set("config_version", nil)
 
+		// Run migration
 		if err := utils.MigrateConfig(); err != nil {
 			t.Fatalf("MigrateConfig() error = %v", err)
 		}
 
+		// Verify migration results
 		if !viper.IsSet("config_version") {
 			t.Error("config_version was not set during migration")
 		}
