@@ -3,11 +3,19 @@ package unit
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/mdaashir/NSM/tests/testutils"
 	"github.com/mdaashir/NSM/utils"
 )
+
+// skipOnWindows skips the test on Windows OS
+func skipOnWindows(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Skipping test on Windows")
+	}
+}
 
 func TestValidatePackage(t *testing.T) {
 	tests := []struct {
@@ -36,6 +44,8 @@ func TestValidatePackage(t *testing.T) {
 
 // TestCheckFlakeSupport tests the flake support detection
 func TestCheckFlakeSupport(t *testing.T) {
+	skipOnWindows(t)
+
 	t.Run("flake supported version", func(t *testing.T) {
 		// Create a mock nix command that returns version 2.4.0
 		mockPath := testutils.CreateMockCmd(t, "nix", "nix (Nix) 2.4.0", 0)
@@ -134,6 +144,8 @@ func TestExtractPackages(t *testing.T) {
 }
 
 func TestGetNixVersion(t *testing.T) {
+	skipOnWindows(t)
+
 	expectedVersion := "nix (Nix) 2.4.0"
 	mockPath := testutils.CreateMockCmd(t, "nix", expectedVersion, 0)
 	defer os.Remove(mockPath)
@@ -165,6 +177,8 @@ func TestGetNixVersion(t *testing.T) {
 }
 
 func TestGetPackageVersion(t *testing.T) {
+	skipOnWindows(t)
+
 	// Create a mock nix-env command that returns package info in JSON format
 	mockOutput := `{
         "nixpkgs.gcc": {

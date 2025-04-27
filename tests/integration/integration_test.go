@@ -5,12 +5,20 @@ package integration
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/mdaashir/NSM/tests/testutils"
 	"github.com/mdaashir/NSM/utils"
 	"github.com/spf13/viper"
 )
+
+// skipOnWindows skips the test on Windows OS
+func skipOnWindows(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Skipping test on Windows")
+	}
+}
 
 // setupTestConfig creates a temporary config file for testing
 func setupTestConfig(t *testing.T, dir string) func() {
@@ -56,6 +64,8 @@ func setupTestConfig(t *testing.T, dir string) func() {
 
 // TestPackageManagement tests package management operations
 func TestPackageManagement(t *testing.T) {
+	skipOnWindows(t)
+
 	config, cleanup := testutils.CreateTestConfig(t)
 	defer cleanup()
 
