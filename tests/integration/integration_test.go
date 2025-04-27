@@ -4,6 +4,7 @@ package integration
 
 import (
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/mdaashir/NSM/tests/testutils"
@@ -14,17 +15,6 @@ import (
 func TestPackageManagement(t *testing.T) {
 	config, cleanup := testutils.CreateTestConfig(t)
 	defer cleanup()
-
-	// Create test shell.nix with secure permissions
-	testShellContent := `{ pkgs ? import <nixpkgs> {} }:
-pkgs.mkShell {
-  packages = with pkgs; [
-    gcc
-  ];
-}`
-	if err := os.WriteFile(config.ShellNixPath, []byte(testShellContent), 0600); err != nil {
-		t.Fatal(err)
-	}
 
 	// Save the current directory
 	origDir, err := os.Getwd()
@@ -54,6 +44,29 @@ pkgs.mkShell {
 		if len(initialPkgs) != 2 {
 			t.Errorf("Expected 2 initial packages, got %d", len(initialPkgs))
 		}
+
+		// Mock the nix-env command to return package info
+		mockPath := testutils.CreateMockCmd(t, "nix-env", `{
+			"nixpkgs.gcc": {
+				"name": "gcc-12.3.0",
+				"version": "12.3.0",
+				"system": "x86_64-linux",
+				"outPath": "/nix/store/...-gcc-12.3.0"
+			}
+		}`, 0)
+		defer os.Remove(mockPath)
+
+		// Update PATH to include mock binary
+		oldPath := os.Getenv("PATH")
+		mockDir := filepath.Dir(mockPath)
+		if err := os.Chmod(mockPath, 0755); err != nil {
+			t.Fatal(err)
+		}
+		newPath := mockDir + string(os.PathListSeparator) + oldPath
+		if err := os.Setenv("PATH", newPath); err != nil {
+			t.Fatal(err)
+		}
+		defer os.Setenv("PATH", oldPath)
 
 		// Pin a package version
 		if err := utils.PinPackage(); err != nil {
