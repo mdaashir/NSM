@@ -52,22 +52,23 @@ func CheckFlakeSupport() bool {
 		return false
 	}
 
-	// Extract version number (format: "nix (Nix) 2.4.0")
+	// Extract version number from format "nix (Nix) 2.4.0"
 	parts := strings.Fields(version)
 	if len(parts) < 3 {
 		return false
 	}
 
-	// Remove trailing ".0" and ")" if present
-	versionNum := strings.TrimRight(strings.TrimSuffix(parts[2], ")"), ".0")
+	// Get the version string (e.g., "2.4.0")
+	versionStr := strings.TrimRight(parts[2], ")")
 
-	// Check if version is >= 2.4
-	major, minor := 0, 0
-	_, err = fmt.Sscanf(versionNum, "%d.%d", &major, &minor)
+	// Parse major and minor versions
+	var major, minor int
+	_, err = fmt.Sscanf(versionStr, "%d.%d", &major, &minor)
 	if err != nil {
 		return false
 	}
 
+	// Flakes are supported in Nix 2.4 and above
 	return major > 2 || (major == 2 && minor >= 4)
 }
 

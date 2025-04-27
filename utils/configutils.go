@@ -107,19 +107,18 @@ func GetConfigSummary() map[string]interface{} {
 
 // MigrateConfig handles configuration format changes
 func MigrateConfig() error {
-	// Check if we need to migrate
-	if !viper.IsSet("config_version") {
-		// Set the initial version
-		viper.Set("config_version", "1.0.0")
-
-		// Migrate old channel format
-		if viper.IsSet("channel") {
-			oldChannel := viper.GetString("channel")
-			if oldChannel != "" {
-				viper.Set("channel.url", oldChannel)
-				viper.Set("channel", nil)
-			}
+	// Migrate old channel format first
+	if !viper.IsSet("channel.url") && viper.IsSet("channel") {
+		oldChannel := viper.GetString("channel")
+		if oldChannel != "" {
+			viper.Set("channel.url", oldChannel)
+			viper.Set("channel", nil)
 		}
+	}
+
+	// Set or update config version
+	if !viper.IsSet("config_version") {
+		viper.Set("config_version", "1.0.0")
 
 		// Ensure default.packages exists as empty slice if not set
 		if !viper.IsSet("default.packages") {
@@ -130,15 +129,15 @@ func MigrateConfig() error {
 		if !viper.IsSet("shell.format") {
 			viper.Set("shell.format", "shell.nix")
 		}
-
-		// Save changes
-		if err := viper.WriteConfig(); err != nil {
-			// Try SafeWriteConfig if the file doesn't exist
-			if err := viper.SafeWriteConfig(); err != nil {
-				return fmt.Errorf("failed to save migrated config: %v", err)
-			}
-		}
 	}
 
+	// Try to save changes, first with WriteConfig, then with SafeWriteConfig if that fails
+	err := viper.WriteConfig()
+	if err != nil {
+		err = viper.SafeWriteConfig()
+		if err != nil {
+			return fmt.Errorf("failed to save migrated config: %v", err)
+		}
+	}
 	return nil
 }
