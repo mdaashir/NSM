@@ -147,7 +147,7 @@ Examples:
 		}
 
 		// Write changes
-		if err := os.WriteFile(configType, []byte(newContent), 0644); err != nil {
+		if err := os.WriteFile(configType, []byte(newContent), 0600); err != nil {
 			utils.Error("Error writing %s: %v", configType, err)
 			return
 		}

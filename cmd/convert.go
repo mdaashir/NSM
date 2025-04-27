@@ -22,7 +22,7 @@ func backupFile(filename string) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(filename+".backup", content, 0644)
+	return os.WriteFile(filename+".backup", content, 0600)
 }
 
 // parseShellNixPackages parses packages from shell.nix with regex
@@ -122,7 +122,7 @@ Examples:
 }`, channel, strings.Join(packages, "\n        "))
 
 		// Write flake.nix
-		if err := os.WriteFile("flake.nix", []byte(flakeContent), 0644); err != nil {
+		if err := os.WriteFile("flake.nix", []byte(flakeContent), 0600); err != nil {
 			fmt.Println("❌ Error writing flake.nix:", err)
 			return
 		}

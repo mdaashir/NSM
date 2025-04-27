@@ -89,7 +89,7 @@ Examples:
 
 		// Write a lock file
 		lockFile := "nsm.lock.json"
-		if err := os.WriteFile(lockFile, lockContent, 0644); err != nil {
+		if err := os.WriteFile(lockFile, lockContent, 0600); err != nil {
 			utils.Error("Failed to write lock file: %v", err)
 			return
 		}

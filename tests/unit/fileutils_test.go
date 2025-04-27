@@ -27,7 +27,7 @@ func TestFileExists(t *testing.T) {
 			name: "existing file",
 			setup: func() string {
 				path := filepath.Join(dir, "test.txt")
-				err := os.WriteFile(path, []byte("test"), 0644)
+				err := os.WriteFile(path, []byte("test"), 0600)
 				if err != nil {
 					return ""
 				}
@@ -79,7 +79,7 @@ func TestBackupFile(t *testing.T) {
 		// Create an original file
 		originalPath := filepath.Join(dir, "original.txt")
 		originalContent := "test content"
-		if err := os.WriteFile(originalPath, []byte(originalContent), 0644); err != nil {
+		if err := os.WriteFile(originalPath, []byte(originalContent), 0600); err != nil {
 			t.Fatal(err)
 		}
 
@@ -187,7 +187,7 @@ func TestGetProjectConfigType(t *testing.T) {
 			// Create test files
 			for file, shouldExist := range tc.files {
 				if shouldExist {
-					if err := os.WriteFile(file, []byte("test"), 0644); err != nil {
+					if err := os.WriteFile(file, []byte("test"), 0600); err != nil {
 						t.Fatal(err)
 					}
 				}

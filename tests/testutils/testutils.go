@@ -93,7 +93,7 @@ exit %d
 `, output, exitCode)
 
 	mockPath := filepath.Join(os.TempDir(), name)
-	if err := os.WriteFile(mockPath, []byte(content), 0755); err != nil {
+	if err := os.WriteFile(mockPath, []byte(content), 0600); err != nil {
 		t.Fatal(err)
 	}
 	return mockPath
@@ -126,7 +126,7 @@ pkgs.mkShell {
     python3
   ];
 }`
-	if err := os.WriteFile(config.ShellNixPath, []byte(shellContent), 0644); err != nil {
+	if err := os.WriteFile(config.ShellNixPath, []byte(shellContent), 0600); err != nil {
 		b.Fatal(err)
 	}
 
@@ -140,7 +140,7 @@ pkgs.mkShell {
     };
   };
 }`
-	if err := os.WriteFile(config.FlakeNixPath, []byte(flakeContent), 0644); err != nil {
+	if err := os.WriteFile(config.FlakeNixPath, []byte(flakeContent), 0600); err != nil {
 		b.Fatal(err)
 	}
 

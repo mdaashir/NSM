@@ -43,7 +43,7 @@ pkgs.mkShell {
   ];
 }`
 
-	if err := os.WriteFile(filepath.Join(config.TempDir, "large-shell.nix"), []byte(largeShellContent), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(config.TempDir, "large-shell.nix"), []byte(largeShellContent), 0600); err != nil {
 		b.Fatal(err)
 	}
 
@@ -80,7 +80,7 @@ func BenchmarkFileOperations(b *testing.B) {
 	defer func(path string) {
 		err := os.RemoveAll(path)
 		if err != nil {
-
+			b.Fatal(err)
 		}
 	}(dir)
 
@@ -97,7 +97,7 @@ func BenchmarkFileOperations(b *testing.B) {
 	// Create test files
 	files := []string{"test1.txt", "test2.txt", "test3.txt"}
 	for _, f := range files {
-		if err := os.WriteFile(filepath.Join(dir, f), []byte("test content"), 0644); err != nil {
+		if err := os.WriteFile(filepath.Join(dir, f), []byte("test content"), 0600); err != nil {
 			b.Fatal(err)
 		}
 	}

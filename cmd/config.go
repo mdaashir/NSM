@@ -195,7 +195,7 @@ var configRemoveCmd = &cobra.Command{
 
 		// Get the current list
 		current := viper.GetStringSlice(key)
-		if current == nil || len(current) == 0 {
+		if len(current) == 0 {
 			utils.Warn("No values to remove from %s", key)
 			return
 		}
