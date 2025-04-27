@@ -47,7 +47,7 @@ gomod:
   env:
     - GOPROXY=https://proxy.golang.org,direct
     - GOSUMDB=sum.golang.org
-  gobuild:
+    - GOPRIVATE=github.com/mdaashir/NSM
     - GO111MODULE=on
     - GOCACHE=/go/cache
     - GOMODCACHE=/go/pkg/mod
@@ -85,7 +85,6 @@ brews:
     commit_author:
       name: goreleaserbot
       email: bot@goreleaser.com
-    folder: Formula
     install: |
       bin.install "nsm"
     test: |
