@@ -1,0 +1,37 @@
+name: nsm
+base: core22
+version: '1.1.6'
+summary: Nix Shell Manager - A tool to manage Nix development environments
+description: |
+  NSM (Nix Shell Manager) is a command-line tool that helps you manage
+  Nix development environments with features like:
+  - Initialize new Nix shell environments
+  - Add/remove packages easily
+  - List installed packages
+  - Convert between shell.nix and flake.nix
+  - Run Nix shells
+  - Manage Nix channel versions
+  - Clean up unused packages
+
+grade: stable
+confinement: classic
+
+apps:
+  nsm:
+    command: bin/nsm
+    plugs:
+      - network
+      - home
+
+parts:
+  nsm:
+    plugin: go
+    source: .
+    build-snaps:
+      - go
+    stage-packages:
+      - nix
+    override-build: |
+      craftctl default
+      # Ensure executable permissions
+      chmod +x $CRAFT_PART_INSTALL/bin/nsm

@@ -1,6 +1,7 @@
 { lib
 , buildGoModule
 , fetchFromGitHub
+, nix
 }:
 
 buildGoModule rec {
@@ -14,9 +15,15 @@ buildGoModule rec {
     hash = lib.fakeHash;  # Will be updated after first build
   };
 
-  vendorHash = null;
+  vendorHash = null;  # Will be updated after first build
 
   ldflags = ["-s" "-w"];
+
+  buildInputs = [ nix ];
+
+  checkPhase = ''
+    go test ./tests/unit/...
+  '';
 
   meta = with lib; {
     description = "NSM (Nix Shell Manager) - A tool to manage Nix development environments";
