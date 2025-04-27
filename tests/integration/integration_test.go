@@ -9,12 +9,59 @@ import (
 
 	"github.com/mdaashir/NSM/tests/testutils"
 	"github.com/mdaashir/NSM/utils"
+	"github.com/spf13/viper"
 )
+
+// setupTestConfig creates a temporary config file for testing
+func setupTestConfig(t *testing.T, dir string) func() {
+	t.Helper()
+
+	// Save original config state
+	oldConfigFile := viper.ConfigFileUsed()
+
+	// Reset viper
+	viper.Reset()
+
+	// Create config directory
+	configDir := filepath.Join(dir, ".config", "NSM")
+	if err := os.MkdirAll(configDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	// Setup viper
+	viper.SetConfigName("config")
+	viper.SetConfigType("yaml")
+	viper.AddConfigPath(configDir)
+
+	// Set test values
+	viper.Set("channel.url", "nixos-unstable")
+	viper.Set("shell.format", "shell.nix")
+	viper.Set("default.packages", []string{})
+	viper.Set("config_version", "1.0.0")
+
+	// Save config
+	if err := viper.SafeWriteConfig(); err != nil {
+		t.Fatal(err)
+	}
+
+	return func() {
+		// Reset viper to original state
+		viper.Reset()
+		if oldConfigFile != "" {
+			viper.SetConfigFile(oldConfigFile)
+			_ = viper.ReadInConfig()
+		}
+	}
+}
 
 // TestPackageManagement tests package management operations
 func TestPackageManagement(t *testing.T) {
 	config, cleanup := testutils.CreateTestConfig(t)
 	defer cleanup()
+
+	// Setup test configuration
+	configCleanup := setupTestConfig(t, config.TempDir)
+	defer configCleanup()
 
 	// Save the current directory
 	origDir, err := os.Getwd()
