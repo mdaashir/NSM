@@ -34,6 +34,7 @@ jobs:
           cache-dependency-path: go.sum
 
       - name: Install Nix
+        if: runner.os != 'Windows'
         uses: DeterminateSystems/nix-installer-action@main
 
       - name: Verify Go modules
@@ -65,28 +66,37 @@ jobs:
       - name: Run Unit Tests with caching
         run: |
           if [ "$RUNNER_OS" == "Windows" ]; then
-            go test -v -count=1 -race -parallel "$NUMBER_OF_PROCESSORS" ./tests/unit/... -test.cache
+            parallel_value="$NUMBER_OF_PROCESSORS"
+          elif [ "$RUNNER_OS" == "macOS" ]; then
+            parallel_value=$(sysctl -n hw.ncpu)
           else
-            go test -v -count=1 -race -parallel "$(nproc)" ./tests/unit/... -test.cache
+            parallel_value=$(nproc)
           fi
+          go test -v -count=1 -race -parallel "$parallel_value" ./tests/unit/... -test.cache
         shell: bash
 
       - name: Run Integration Tests with caching
         run: |
           if [ "$RUNNER_OS" == "Windows" ]; then
-            go test -v -count=1 -race -parallel "$NUMBER_OF_PROCESSORS" ./tests/integration/... -test.cache
+            parallel_value="$NUMBER_OF_PROCESSORS"
+          elif [ "$RUNNER_OS" == "macOS" ]; then
+            parallel_value=$(sysctl -n hw.ncpu)
           else
-            go test -v -count=1 -race -parallel "$(nproc)" ./tests/integration/... -test.cache
+            parallel_value=$(nproc)
           fi
+          go test -v -count=1 -race -parallel "$parallel_value" ./tests/integration/... -test.cache
         shell: bash
 
       - name: Run Benchmarks with caching
         run: |
           if [ "$RUNNER_OS" == "Windows" ]; then
-            go test -v -count=1 -bench=. ./tests/benchmark/... -test.cache
+            parallel_value="$NUMBER_OF_PROCESSORS"
+          elif [ "$RUNNER_OS" == "macOS" ]; then
+            parallel_value=$(sysctl -n hw.ncpu)
           else
-            go test -v -count=1 -bench=. ./tests/benchmark/... -test.cache
+            parallel_value=$(nproc)
           fi
+          go test -v -count=1 -bench=. -parallel "$parallel_value" ./tests/benchmark/... -test.cache
         shell: bash
 
       - name: Generate Test Coverage
@@ -139,5 +149,5 @@ jobs:
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v7
         with:
-          version: latest
+          version: v1.54.2
           args: --timeout=5m
