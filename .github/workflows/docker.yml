@@ -2,10 +2,7 @@ name: Docker CI/CD
 
 on:
   push:
-    branches: ['main', 'master']
     tags: ['v*.*.*']
-  pull_request:
-    branches: ['main', 'master']
 
 env:
   DOCKER_IMAGE: ghcr.io/${{ github.repository }}
@@ -42,9 +39,7 @@ jobs:
         with:
           images: ${{ env.DOCKER_IMAGE }}
           tags: |
-            type=raw,value=latest,enable={{is_default_branch}}
-            type=ref,event=branch
-            type=ref,event=pr
+            type=raw,value=latest
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
 
