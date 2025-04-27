@@ -103,7 +103,7 @@ func TestExtractPackages(t *testing.T) {
 		expected := []string{"gcc", "python3"}
 
 		if len(packages) != len(expected) {
-			t.Errorf("got %d packages, want %d", len(packages), len(expected))
+			t.Errorf("got %d packages (%v), want %d (%v)", len(packages), packages, len(expected), expected)
 		}
 
 		for i, pkg := range packages {
@@ -123,7 +123,7 @@ func TestExtractPackages(t *testing.T) {
 		expected := []string{"gcc", "python3"}
 
 		if len(packages) != len(expected) {
-			t.Errorf("got %d packages, want %d", len(packages), len(expected))
+			t.Errorf("got %d packages (%v), want %d (%v)", len(packages), packages, len(expected), expected)
 		}
 
 		for i, pkg := range packages {

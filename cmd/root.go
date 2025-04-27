@@ -5,6 +5,7 @@ package cmd
 
 import (
 	"os"
+	"path/filepath"
 
 	"github.com/mdaashir/NSM/utils"
 	"github.com/spf13/cobra"
@@ -97,20 +98,18 @@ func setupConfig() {
 		} else {
 			utils.Debug("No config file found, using defaults")
 
-			// Set safe file permissions for config
-			viper.SafeWriteConfigAs = func(filename string) error {
-				err := viper.WriteConfigAs(filename)
-				if err != nil {
-					return err
-				}
-				return os.Chmod(filename, 0600)
-			}
-
-			// Try to create the default configuration file
-			if err := viper.SafeWriteConfig(); err != nil {
+			// Create default config file with safe permissions
+			defaultConfigFile := filepath.Join(viper.GetString("config_path"), "config.yaml")
+			err := viper.WriteConfigAs(defaultConfigFile)
+			if err != nil {
 				utils.Debug("Could not create default config file: %v", err)
 			} else {
-				utils.Debug("Created default config file: %s", viper.ConfigFileUsed())
+				// Set safe file permissions
+				err = os.Chmod(defaultConfigFile, 0600)
+				if err != nil {
+					utils.Debug("Could not set config file permissions: %v", err)
+				}
+				utils.Debug("Created default config file: %s", defaultConfigFile)
 			}
 		}
 	} else {
