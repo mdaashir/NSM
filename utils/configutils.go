@@ -112,12 +112,11 @@ func MigrateConfig() error {
 		// Set the initial version
 		viper.Set("config_version", "1.0.0")
 
-		// Migrate any old settings
+		// Migrate old channel format
 		if viper.IsSet("channel") {
-			oldChannel := viper.Get("channel")
-			if str, ok := oldChannel.(string); ok {
-				// Clear old channel key and set new format
-				viper.Set("channel.url", str)
+			oldChannel := viper.GetString("channel")
+			if oldChannel != "" {
+				viper.Set("channel.url", oldChannel)
 				viper.Set("channel", nil)
 			}
 		}
@@ -134,7 +133,7 @@ func MigrateConfig() error {
 
 		// Save changes
 		if err := viper.WriteConfig(); err != nil {
-			// If config doesn't exist yet, use SafeWriteConfig
+			// Try SafeWriteConfig if the file doesn't exist
 			if err := viper.SafeWriteConfig(); err != nil {
 				return fmt.Errorf("failed to save migrated config: %v", err)
 			}

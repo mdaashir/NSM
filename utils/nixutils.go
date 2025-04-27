@@ -52,14 +52,14 @@ func CheckFlakeSupport() bool {
 		return false
 	}
 
-	// Extract version number
+	// Extract version number (format: "nix (Nix) 2.4.0")
 	parts := strings.Fields(version)
 	if len(parts) < 3 {
 		return false
 	}
 
-	// Remove trailing ".0" from version if present
-	versionNum := strings.TrimSuffix(strings.TrimSuffix(parts[2], ")"), ".0")
+	// Remove trailing ".0" and ")" if present
+	versionNum := strings.TrimRight(strings.TrimSuffix(parts[2], ")"), ".0")
 
 	// Check if version is >= 2.4
 	major, minor := 0, 0
