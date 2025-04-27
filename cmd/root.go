@@ -98,4 +98,9 @@ func setupConfig() {
 	} else {
 		utils.Debug("Using config file: %s", viper.ConfigFileUsed())
 	}
+	
+	// Migrate configuration if needed
+	if err := utils.MigrateConfig(); err != nil {
+		utils.Error("Error migrating config: %v", err)
+	}
 }

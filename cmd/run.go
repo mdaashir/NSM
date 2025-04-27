@@ -43,7 +43,12 @@ Examples:
 
 		utils.Debug("Using configuration file: %s", configType)
 
-		isPure, _ := cmd.Flags().GetBool("pure")
+		isPure, err := cmd.Flags().GetBool("pure")
+		if err != nil {
+			utils.Error("Failed to get pure flag: %v", err)
+			return
+		}
+		
 		if isPure {
 			utils.Debug("Running in pure mode")
 		}
@@ -72,13 +77,18 @@ Examples:
 
 		// Setup command environment
 		c.Env = os.Environ()
-		c.Dir, _ = os.Getwd()
+		currentDir, err := os.Getwd()
+		if err != nil {
+			utils.Error("Failed to get current directory: %v", err)
+			return
+		}
+		c.Dir = currentDir
 		c.Stdout = os.Stdout
 		c.Stderr = os.Stderr
 		c.Stdin = os.Stdin
 
 		// Run the command
-		err := c.Run()
+		err = c.Run()
 		if err != nil {
 			utils.Error("Error running %s: %v", configType, err)
 			utils.Tip("Try running 'nsm doctor' to diagnose issues")

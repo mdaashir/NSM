@@ -58,6 +58,8 @@ var configShowCmd = &cobra.Command{
 				utils.Error("- %s", err.Error())
 			}
 			utils.Tip("Run 'nsm config validate' for more details")
+		} else {
+			utils.Success("✅ Configuration is valid")
 		}
 	},
 }
