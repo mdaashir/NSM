@@ -23,17 +23,6 @@ func BackupFile(filename string) error {
 	return os.WriteFile(filename+".backup", content, 0644)
 }
 
-// GetProjectConfigType returns "shell.nix", "flake.nix", or "" based on what exists
-func GetProjectConfigType() string {
-	if FileExists("shell.nix") {
-		return "shell.nix"
-	}
-	if FileExists("flake.nix") {
-		return "flake.nix"
-	}
-	return ""
-}
-
 // EnsureConfigDir ensures the NSM config directory exists and returns its path
 func EnsureConfigDir() (string, error) {
 	home, err := os.UserHomeDir()
@@ -66,15 +55,14 @@ func ReadFile(filename string) (string, error) {
 	return string(content), nil
 }
 
-// WriteFile writes content to a file, creating it if it doesn't exist
-func WriteFile(filename string, content string) error {
-	return os.WriteFile(filename, []byte(content), 0644)
-}
-
-// CreateDirIfNotExists creates a directory if it doesn't exist
-func CreateDirIfNotExists(path string) error {
-	if _, err := os.Stat(path); os.IsNotExist(err) {
-		return os.MkdirAll(path, 0755)
+// GetProjectConfigType determines which type of Nix configuration file exists
+// Returns "shell.nix", "flake.nix", or "" if none found
+func GetProjectConfigType() string {
+	if FileExists("shell.nix") {
+		return "shell.nix"
 	}
-	return nil
+	if FileExists("flake.nix") {
+		return "flake.nix"
+	}
+	return ""
 }

@@ -82,9 +82,12 @@ func logMessage(level LogLevel, format string, args ...interface{}) {
 
 	message := formatMessage(level, format, args...)
 
-	// Write to appropriate output
+	// Write to the appropriate output
 	if level == LevelError {
-		fmt.Fprintln(os.Stderr, message)
+		_, err := fmt.Fprintln(os.Stderr, message)
+		if err != nil {
+			return
+		}
 	} else {
 		fmt.Println(message)
 	}

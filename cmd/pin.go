@@ -4,9 +4,10 @@ Copyright © 2025 Mohamed Aashir S <s.mohamedaashir@gmail.com>
 package cmd
 
 import (
-	"NSM/utils"
 	"fmt"
 	"strings"
+
+	"github.com/mdaashir/NSM/utils"
 
 	"github.com/spf13/cobra"
 )
@@ -27,7 +28,7 @@ to ensure the specified package version is used in future installations.`,
 
 		// Validate version format
 		if !strings.HasPrefix(version, "v") && !strings.Contains(version, ".") {
-			utils.Logger.Warn("Version format might be invalid. Consider using semantic versioning (e.g., v1.0.0 or 1.0.0)")
+			utils.Warn("Version format might be invalid. Consider using semantic versioning (e.g., v1.0.0 or 1.0.0)")
 		}
 
 		err := utils.PinPackage(pkg, version)
@@ -35,7 +36,7 @@ to ensure the specified package version is used in future installations.`,
 			return fmt.Errorf("failed to pin package: %v", err)
 		}
 
-		utils.Logger.Success(fmt.Sprintf("Successfully pinned %s to version %s", pkg, version))
+		utils.Success("Successfully pinned %s to version %s", pkg, version)
 		return nil
 	},
 }

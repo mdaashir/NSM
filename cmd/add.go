@@ -41,7 +41,7 @@ Examples:
 		utils.Debug("Found configuration file: %s", configType)
 
 		// Validate packages
-		invalidPkgs := []string{}
+		var invalidPkgs []string
 		for _, pkg := range args {
 			if !utils.ValidatePackage(pkg) {
 				invalidPkgs = append(invalidPkgs, pkg)
@@ -60,16 +60,14 @@ Examples:
 			return
 		}
 
-		// Read existing file
-		data, err := os.ReadFile(configType)
+		// Read an existing file
+		content, err := utils.ReadFile(configType)
 		if err != nil {
 			utils.Error("Error reading %s: %v", configType, err)
 			return
 		}
 
-		content := string(data)
-
-		// Find insertion point based on file type
+		// Find an insertion point based on a file type
 		var pos int
 		if configType == "shell.nix" {
 			pos = strings.Index(content, "];")
@@ -84,7 +82,7 @@ Examples:
 		}
 
 		// Check for duplicate packages
-		duplicates := []string{}
+		var duplicates []string
 		currentContent := content[:pos]
 		for _, pkg := range args {
 			if strings.Contains(currentContent, pkg) {

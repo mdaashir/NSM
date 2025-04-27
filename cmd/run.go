@@ -48,7 +48,7 @@ Examples:
 			utils.Error("Failed to get pure flag: %v", err)
 			return
 		}
-		
+
 		if isPure {
 			utils.Debug("Running in pure mode")
 		}
@@ -56,7 +56,7 @@ Examples:
 		var c *exec.Cmd
 		if configType == "shell.nix" {
 			utils.Info("🚀 Launching nix-shell...")
-			cmdArgs := []string{}
+			var cmdArgs []string
 			if isPure {
 				cmdArgs = append(cmdArgs, "--pure")
 			}

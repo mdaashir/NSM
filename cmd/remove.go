@@ -14,7 +14,7 @@ import (
 // removePackagesFromShellNix removes packages from shell.nix
 func removePackagesFromShellNix(content string, toRemove map[string]bool) (string, int) {
 	lines := strings.Split(content, "\n")
-	result := []string{}
+	var result []string
 	inPackages := false
 	removed := 0
 
@@ -48,7 +48,7 @@ func removePackagesFromShellNix(content string, toRemove map[string]bool) (strin
 // removePackagesFromFlake removes packages from flake.nix
 func removePackagesFromFlake(content string, toRemove map[string]bool) (string, int) {
 	lines := strings.Split(content, "\n")
-	result := []string{}
+	var result []string
 	inBuildInputs := false
 	removed := 0
 
@@ -104,7 +104,7 @@ Examples:
 			return
 		}
 
-		// Create map of packages to remove
+		// Create a map of packages to remove
 		toRemove := make(map[string]bool)
 		for _, pkg := range args {
 			toRemove[pkg] = true
@@ -119,8 +119,14 @@ Examples:
 
 		utils.Debug("Found configuration file: %s", configType)
 
-		// Read configuration file
-		content, err := os.ReadFile(configType)
+		// Create backup before modifying
+		if err := utils.BackupFile(configType); err != nil {
+			utils.Error("Failed to create backup: %v", err)
+			return
+		}
+
+		// Read a configuration file
+		content, err := utils.ReadFile(configType)
 		if err != nil {
 			utils.Error("Error reading %s: %v", configType, err)
 			return
@@ -130,19 +136,13 @@ Examples:
 		var removed int
 
 		if configType == "shell.nix" {
-			newContent, removed = removePackagesFromShellNix(string(content), toRemove)
+			newContent, removed = removePackagesFromShellNix(content, toRemove)
 		} else {
-			newContent, removed = removePackagesFromFlake(string(content), toRemove)
+			newContent, removed = removePackagesFromFlake(content, toRemove)
 		}
 
 		if removed == 0 {
 			utils.Warn("No packages were found to remove")
-			return
-		}
-
-		// Create backup before modifying
-		if err := utils.BackupFile(configType); err != nil {
-			utils.Error("Failed to create backup: %v", err)
 			return
 		}
 

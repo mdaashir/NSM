@@ -12,6 +12,10 @@ import (
 	"github.com/spf13/viper"
 )
 
+const (
+	ChannelURLKey = "channel.url"
+)
+
 // backupFile creates a backup of the given file
 func backupFile(filename string) error {
 	content, err := os.ReadFile(filename)
@@ -81,7 +85,7 @@ Examples:
 			return
 		}
 
-		// Create backup if requested
+		// Create a backup if requested
 		noBackup, _ := cmd.Flags().GetBool("no-backup")
 		if !noBackup {
 			if err := backupFile("shell.nix"); err != nil {

@@ -38,10 +38,19 @@ Examples:
 			return
 		}
 
-		useFlake, _ := cmd.Flags().GetBool("flake")
-		force, _ := cmd.Flags().GetBool("force")
+		useFlake, err := cmd.Flags().GetBool("flake")
+		if err != nil {
+			utils.Error("Failed to get flake flag: %v", err)
+			return
+		}
 
-		// Determine file to create
+		force, err := cmd.Flags().GetBool("force")
+		if err != nil {
+			utils.Error("Failed to get force flag: %v", err)
+			return
+		}
+
+		// Determine a file to create
 		var filename string
 		if useFlake {
 			filename = "flake.nix"
@@ -64,7 +73,7 @@ Examples:
 			utils.Debug("Force flag enabled, will overwrite existing files")
 		}
 
-		// Create backup if file exists and force is enabled
+		// Create a backup if a file exists and force is enabled
 		if force && utils.FileExists(filename) {
 			if err := utils.BackupFile(filename); err != nil {
 				utils.Error("Failed to create backup: %v", err)
@@ -82,7 +91,7 @@ Examples:
 		}
 
 		// Write the file
-		err := os.WriteFile(filename, []byte(content), 0644)
+		err = os.WriteFile(filename, []byte(content), 0644)
 		if err != nil {
 			utils.Error("Failed to create %s: %v", filename, err)
 			return
@@ -134,7 +143,7 @@ pkgs.mkShell {
 // getDefaultFlakeContent generates flake.nix content with configured defaults
 func getDefaultFlakeContent() string {
 	defaultPkgs := viper.GetStringSlice("default.packages")
-	validPkgs := []string{}
+	var validPkgs []string
 	for _, pkg := range defaultPkgs {
 		if utils.ValidatePackage(pkg) {
 			validPkgs = append(validPkgs, pkg)

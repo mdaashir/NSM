@@ -34,7 +34,7 @@ Examples:
 			return
 		}
 
-		// Get configuration type
+		// Get a configuration type
 		configType := utils.GetProjectConfigType()
 		if configType == "" {
 			utils.Error("No shell.nix or flake.nix found in current directory")
@@ -44,8 +44,11 @@ Examples:
 
 		// Get installed packages
 		installedPkgs := make(map[string]bool)
-		cmd := exec.Command("nix-env", "--query", "--installed")
-		if output, err := cmd.Output(); err == nil {
+		nixEnvCmd := exec.Command("nix-env", "--query", "--installed")
+		output, err := nixEnvCmd.Output()
+		if err != nil {
+			utils.Debug("Could not query installed packages: %v", err)
+		} else {
 			for _, line := range strings.Split(string(output), "\n") {
 				if pkg := strings.TrimSpace(line); pkg != "" {
 					installedPkgs[pkg] = true
@@ -53,7 +56,7 @@ Examples:
 			}
 		}
 
-		// Read configuration file
+		// Read a configuration file
 		content, err := utils.ReadFile(configType)
 		if err != nil {
 			utils.Error("Failed to read %s: %v", configType, err)
@@ -92,7 +95,7 @@ Examples:
 			})
 		}
 
-		// Output as table
+		// Output as a table
 		utils.Info("\n📦 Packages in your Nix environment:")
 		utils.Table(headers, rows)
 

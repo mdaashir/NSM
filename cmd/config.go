@@ -79,21 +79,36 @@ var configSetCmd = &cobra.Command{
 				utils.Error("Invalid shell format. Must be 'shell.nix' or 'flake.nix'")
 				return
 			}
+		case "default.packages":
+			utils.Error("Cannot set default.packages directly. Use 'nsm config add/remove default.packages' instead")
+			return
 		}
 
+		// Backup old value in case we need to restore
+		oldValue := viper.Get(key)
+
 		viper.Set(key, value)
+
+		// Validate before saving
+		if errors := utils.ValidateConfig(); len(errors) > 0 {
+			utils.Error("New configuration is invalid")
+			for _, err := range errors {
+				utils.Error("- %s", err.Error())
+			}
+
+			// Restore old value
+			if oldValue != nil {
+				viper.Set(key, oldValue)
+			}
+			return
+		}
+
 		if err := viper.WriteConfig(); err != nil {
 			utils.Error("Failed to save config: %v", err)
 			return
 		}
 
 		utils.Success("Set %s = %s", key, value)
-
-		// Validate the change
-		if errors := utils.ValidateConfig(); len(errors) > 0 {
-			utils.Warn("New configuration has validation issues")
-			utils.Tip("Run 'nsm config validate' to see details")
-		}
 	},
 }
 
@@ -130,10 +145,20 @@ var configAddCmd = &cobra.Command{
 			return
 		}
 
-		// Get current list
-		current := viper.GetStringSlice(key)
+		// Validate value if it's a package
+		if key == "default.packages" && !utils.ValidatePackage(value) {
+			utils.Error("Invalid package name: %s", value)
+			utils.Tip("Check package names in https://search.nixos.org")
+			return
+		}
 
-		// Check if value already exists
+		// Get the current list
+		current := viper.GetStringSlice(key)
+		if current == nil {
+			current = []string{}
+		}
+
+		// Check if the value already exists
 		for _, v := range current {
 			if v == value {
 				utils.Warn("Value %s already exists in %s", value, key)
@@ -168,8 +193,12 @@ var configRemoveCmd = &cobra.Command{
 			return
 		}
 
-		// Get current list
+		// Get the current list
 		current := viper.GetStringSlice(key)
+		if current == nil || len(current) == 0 {
+			utils.Warn("No values to remove from %s", key)
+			return
+		}
 
 		// Remove value
 		var newList []string
@@ -202,6 +231,17 @@ var configResetCmd = &cobra.Command{
 	Use:   "reset",
 	Short: "Reset configuration to defaults",
 	Run: func(cmd *cobra.Command, args []string) {
+		// Create backup of current config
+		configFile := viper.ConfigFileUsed()
+		if configFile != "" && utils.FileExists(configFile) {
+			if err := utils.BackupFile(configFile); err != nil {
+				utils.Error("Failed to backup config: %v", err)
+				// Continue anyway
+			} else {
+				utils.Debug("Created backup: %s.backup", configFile)
+			}
+		}
+
 		// Set default values
 		viper.Set("channel.url", "nixos-unstable")
 		viper.Set("shell.format", "shell.nix")

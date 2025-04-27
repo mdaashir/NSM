@@ -87,6 +87,8 @@ func setupConfig() {
 	// Set default values
 	viper.SetDefault("channel.url", "nixos-unstable")
 	viper.SetDefault("shell.format", "shell.nix")
+	viper.SetDefault("default.packages", []string{})
+	viper.SetDefault("config_version", "1.0.0")
 
 	// Read the config file
 	if err := viper.ReadInConfig(); err != nil {
@@ -94,13 +96,20 @@ func setupConfig() {
 			utils.Error("Error reading config file: %v", err)
 		} else {
 			utils.Debug("No config file found, using defaults")
+
+			// Try to create the default configuration file
+			if err := viper.SafeWriteConfig(); err != nil {
+				utils.Debug("Could not create default config file: %v", err)
+			} else {
+				utils.Debug("Created default config file: %s", viper.ConfigFileUsed())
+			}
 		}
 	} else {
 		utils.Debug("Using config file: %s", viper.ConfigFileUsed())
 	}
-	
-	// Migrate configuration if needed
+
+	// Run configuration migration if needed
 	if err := utils.MigrateConfig(); err != nil {
-		utils.Error("Error migrating config: %v", err)
+		utils.Error("Error migrating configuration: %v", err)
 	}
 }

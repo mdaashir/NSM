@@ -2,6 +2,7 @@ package utils
 
 import (
 	"fmt"
+	"os/exec"
 
 	"github.com/spf13/viper"
 )
@@ -29,7 +30,7 @@ func ValidateConfig() []ConfigValidationError {
 		})
 	}
 
-	// Check shell format
+	// Check a shell format
 	shellFormat := viper.GetString("shell.format")
 	if shellFormat != "shell.nix" && shellFormat != "flake.nix" {
 		errors = append(errors, ConfigValidationError{
@@ -39,12 +40,19 @@ func ValidateConfig() []ConfigValidationError {
 	}
 
 	// Check default packages format
-	defaultPkgs := viper.GetStringSlice("default.packages")
-	if defaultPkgs == nil {
+	if !viper.IsSet("default.packages") {
 		errors = append(errors, ConfigValidationError{
 			Key:     "default.packages",
-			Message: "default packages must be a list (can be empty)",
+			Message: "default.packages setting is required (can be empty list)",
 		})
+	} else {
+		defaultPkgs := viper.GetStringSlice("default.packages")
+		if defaultPkgs == nil {
+			errors = append(errors, ConfigValidationError{
+				Key:     "default.packages",
+				Message: "default packages must be a list (can be empty)",
+			})
+		}
 	}
 
 	return errors
@@ -52,6 +60,9 @@ func ValidateConfig() []ConfigValidationError {
 
 // GetConfigSummary returns a human-readable summary of the current configuration
 func GetConfigSummary() map[string]interface{} {
+	// Import circular reference resolved by moving CheckNixInstallation call logic here
+	_, nixErr := exec.LookPath("nix-env")
+
 	return map[string]interface{}{
 		"channel.url":      viper.GetString("channel.url"),
 		"shell.format":     viper.GetString("shell.format"),
@@ -59,7 +70,7 @@ func GetConfigSummary() map[string]interface{} {
 		"config_file":      viper.ConfigFileUsed(),
 		"environment":      viper.GetString("environment"),
 		"flakes_enabled":   CheckFlakeSupport(),
-		"nix_installed":    CheckNixInstallation() == nil,
+		"nix_installed":    nixErr == nil,
 		"config_validated": len(ValidateConfig()) == 0,
 	}
 }
@@ -68,7 +79,7 @@ func GetConfigSummary() map[string]interface{} {
 func MigrateConfig() error {
 	// Check if we need to migrate
 	if !viper.IsSet("config_version") {
-		// Set initial version
+		// Set the initial version
 		viper.Set("config_version", "1.0.0")
 
 		// Migrate any old settings
@@ -77,10 +88,51 @@ func MigrateConfig() error {
 			viper.Set("channel", nil)
 		}
 
+		// Ensure default.packages exists as empty slice if not set
+		if !viper.IsSet("default.packages") {
+			viper.Set("default.packages", []string{})
+		}
+
+		// Ensure shell.format is set
+		if !viper.IsSet("shell.format") {
+			viper.Set("shell.format", "shell.nix")
+		}
+
+		// Save changes
 		if err := viper.WriteConfig(); err != nil {
 			return fmt.Errorf("failed to save migrated config: %v", err)
 		}
 	}
 
 	return nil
+}
+
+// Config represents the NSM configuration structure
+type Config struct {
+	Pins map[string]string
+}
+
+// LoadConfig loads and returns the NSM configuration
+func LoadConfig() (*Config, error) {
+	configData := viper.AllSettings()
+	config := &Config{
+		Pins: make(map[string]string),
+	}
+
+	if pins, ok := configData["pins"].(map[string]interface{}); ok {
+		for k, v := range pins {
+			if str, ok := v.(string); ok {
+				config.Pins[k] = str
+			}
+		}
+	}
+
+	return config, nil
+}
+
+// SaveConfig saves the NSM configuration
+func SaveConfig(config *Config) error {
+	// Store pins in viper
+	viper.Set("pins", config.Pins)
+	return viper.WriteConfig()
 }

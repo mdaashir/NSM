@@ -38,7 +38,7 @@ Example:
 			return
 		}
 
-		// Show Nix version
+		// Show a Nix version
 		if version, err := utils.GetNixVersion(); err == nil {
 			utils.Success("Nix Version: %s", version)
 		} else {
@@ -67,7 +67,7 @@ Example:
 			}
 		}
 
-		// Show current directory configuration
+		// Show the current directory configuration
 		utils.Info("\n📁 Project Configuration:")
 		utils.Info("=====================")
 

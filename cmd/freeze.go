@@ -35,7 +35,7 @@ Examples:
 			return
 		}
 
-		// Get configuration type
+		// Get a configuration type
 		configType := utils.GetProjectConfigType()
 		if configType == "" {
 			utils.Error("No shell.nix or flake.nix found in current directory")
@@ -87,7 +87,7 @@ Examples:
 			return
 		}
 
-		// Write lock file
+		// Write a lock file
 		lockFile := "nsm.lock.json"
 		if err := os.WriteFile(lockFile, lockContent, 0644); err != nil {
 			utils.Error("Failed to write lock file: %v", err)
