@@ -34,7 +34,6 @@ builds:
     mod_timestamp: '{{ .CommitTimestamp }}'
     flags:
       - -trimpath
-    buildmode: pie
     hooks:
       pre:
         - go mod verify

@@ -27,19 +27,15 @@ jobs:
           sudo snap install snapcraft --classic
           sudo chown root:root /
 
-      # Login to Snapcraft
+      # Login to Snapcraft using environment variables
       - name: Login to Snapcraft
+        env:
+          SNAP_EMAIL: ${{ secrets.SNAPCRAFT_EMAIL }}
+          SNAP_PASSWORD: ${{ secrets.SNAPCRAFT_PASSWORD }}
         run: |
-          mkdir -p ~/.config/snapcraft
-          echo "${{ secrets.SNAPCRAFT_EMAIL }}" > ~/.config/snapcraft/email
-          echo "${{ secrets.SNAPCRAFT_PASSWORD }}" > ~/.config/snapcraft/password
-          snapcraft login --with ~/.config/snapcraft/email < ~/.config/snapcraft/password
-          rm -f ~/.config/snapcraft/email ~/.config/snapcraft/password
-
-      # Register snap name if not already registered
-      - name: Register snap name
-        continue-on-error: true  # Continue if already registered
-        run: snapcraft register nsm
+          echo "$SNAP_EMAIL" | snapcraft login --with - << EOF
+          $SNAP_PASSWORD
+          EOF
 
       # Build the snap
       - uses: snapcore/action-build@v1
