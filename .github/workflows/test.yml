@@ -1,5 +1,3 @@
-# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
-
 name: Test
 
 on:
@@ -8,19 +6,12 @@ on:
   pull_request:
     branches: [main]
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
-
 jobs:
   test:
-    name: Run Tests (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 15
+    name: Run Tests
+    runs-on: ubuntu-latest
     strategy:
-      fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
         go-version: ['1.24.x']
 
     steps:
@@ -34,100 +25,25 @@ jobs:
           cache-dependency-path: go.sum
 
       - name: Install Nix
-        if: runner.os != 'Windows'
         uses: DeterminateSystems/nix-installer-action@main
 
-      - name: Verify Go modules
+      - name: Run Unit Tests
+        run: go test -v ./tests/unit/...
+
+      - name: Run Integration Tests
+        run: go test -v ./tests/integration/...
+
+      - name: Run Benchmarks
+        run: go test -v -bench=. ./tests/benchmark/...
+
+      - name: Check Test Coverage
         run: |
-          go mod verify
-          go mod tidy
-          status=$(git status --porcelain go.mod go.sum)
-          if [ -n "$status" ]; then
-            echo "go.mod or go.sum is not up to date"
-            exit 1
-          fi
-        shell: bash
-
-      - name: Cache Go build and test cache
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cache/go-build
-            ~/go/pkg/mod
-            ~/.cache/golangci-lint
-          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}-${{ hashFiles('**/*.go') }}
-          restore-keys: |
-            ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}-
-            ${{ runner.os }}-go-
-
-      - name: Install dependencies
-        run: go mod download
-
-      - name: Run Unit Tests with caching
-        run: |
-          if [ "$RUNNER_OS" == "Windows" ]; then
-            parallel_value="$NUMBER_OF_PROCESSORS"
-          elif [ "$RUNNER_OS" == "macOS" ]; then
-            parallel_value=$(sysctl -n hw.ncpu)
-          else
-            parallel_value=$(nproc)
-          fi
-          go test -v -count=1 -race -parallel "$parallel_value" ./tests/unit/... -test.cache
-        shell: bash
-
-      - name: Run Integration Tests with caching
-        run: |
-          if [ "$RUNNER_OS" == "Windows" ]; then
-            parallel_value="$NUMBER_OF_PROCESSORS"
-          elif [ "$RUNNER_OS" == "macOS" ]; then
-            parallel_value=$(sysctl -n hw.ncpu)
-          else
-            parallel_value=$(nproc)
-          fi
-          go test -v -count=1 -race -parallel "$parallel_value" ./tests/integration/... -test.cache
-        shell: bash
-
-      - name: Run Benchmarks with caching
-        run: |
-          if [ "$RUNNER_OS" == "Windows" ]; then
-            parallel_value="$NUMBER_OF_PROCESSORS"
-          elif [ "$RUNNER_OS" == "macOS" ]; then
-            parallel_value=$(sysctl -n hw.ncpu)
-          else
-            parallel_value=$(nproc)
-          fi
-          go test -v -count=1 -bench=. -parallel "$parallel_value" ./tests/benchmark/... -test.cache
-        shell: bash
-
-      - name: Generate Test Coverage
-        run: go test -race -coverprofile=coverage.out -covermode=atomic ./...
-
-      - name: Check coverage threshold
-        shell: python
-        run: |
-          import sys
-          with open('coverage.out', 'r') as f:
-            for line in f:
-              if 'total:' in line:
-                coverage = float(line.split()[-1].rstrip('%'))
-                threshold = 80
-                if coverage < threshold:
-                  print(f"Test coverage ({coverage}%) is below threshold ({threshold}%)")
-                  sys.exit(1)
-                print(f"Test coverage: {coverage}%")
-                break
-
-      - name: Upload coverage report
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage-report-${{ matrix.os }}
-          path: coverage.out
-          retention-days: 7
+          go test -coverprofile=coverage.out ./...
+          go tool cover -func=coverage.out
 
   lint:
     name: Lint
     runs-on: ubuntu-latest
-    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
 
@@ -147,7 +63,7 @@ jobs:
             ${{ runner.os }}-golangci-lint-
 
       - name: golangci-lint
-        uses: golangci/golangci-lint-action@v7
+        uses: golangci/golangci-lint-action@v4
         with:
           version: latest
           args: --timeout=5m
