@@ -27,8 +27,8 @@ archives:
 # Docker settings
 dockers:
   - image_templates:
-      - "mdaashir/nsm:{{ .Version }}"
-      - "mdaashir/nsm:latest"
+      - "ghcr.io/mdaashir/nsm:{{ .Version }}"
+      - "ghcr.io/mdaashir/nsm:latest"
     use: docker
     build_flag_templates:
       - "--platform=linux/amd64"
