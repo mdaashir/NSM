@@ -22,7 +22,7 @@ jobs:
           fetch-depth: 0
 
       - name: Install cosign
-        uses: sigstore/cosign-installer@v3.4.0
+        uses: sigstore/cosign-installer@v3.8.2
 
       - name: Setup Syft
         uses: anchore/sbom-action/download-syft@v0.15.10
