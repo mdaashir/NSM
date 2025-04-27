@@ -27,15 +27,27 @@ func captureOutput(f func()) (string, string) {
 	f()
 
 	// Close writers and restore original stdout/stderr
-	wOut.Close()
-	wErr.Close()
+	err := wOut.Close()
+	if err != nil {
+		return "", ""
+	}
+	err = wErr.Close()
+	if err != nil {
+		return "", ""
+	}
 	os.Stdout = originalStdout
 	os.Stderr = originalStderr
 
 	// Read captured output
 	var stdout, stderr bytes.Buffer
-	io.Copy(&stdout, rOut)
-	io.Copy(&stderr, rErr)
+	_, err = io.Copy(&stdout, rOut)
+	if err != nil {
+		return "", ""
+	}
+	_, err = io.Copy(&stderr, rErr)
+	if err != nil {
+		return "", ""
+	}
 
 	return stdout.String(), stderr.String()
 }
@@ -180,7 +192,7 @@ func TestTable(t *testing.T) {
 		t.Errorf("Table headers not found in output: %s", lines[0])
 	}
 
-	// Check separator line
+	// Check the separator line
 	if !strings.Contains(lines[1], "-+-") {
 		t.Errorf("Table separator not found in output: %s", lines[1])
 	}
@@ -197,12 +209,18 @@ func TestTable(t *testing.T) {
 }
 
 func TestNoColorOutput(t *testing.T) {
-	// Save original env and restore after test
+	// Save original env and restore after a test
 	origNoColor := os.Getenv("NO_COLOR")
 	origTerm := os.Getenv("TERM")
 	defer func() {
-		os.Setenv("NO_COLOR", origNoColor)
-		os.Setenv("TERM", origTerm)
+		err := os.Setenv("NO_COLOR", origNoColor)
+		if err != nil {
+			return
+		}
+		err = os.Setenv("TERM", origTerm)
+		if err != nil {
+			return
+		}
 	}()
 
 	tests := []struct {
@@ -229,9 +247,12 @@ func TestNoColorOutput(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Set test environment
+			// Set a test environment
 			for k, v := range tt.setEnv {
-				os.Setenv(k, v)
+				err := os.Setenv(k, v)
+				if err != nil {
+					return
+				}
 			}
 
 			stdout, _ := captureOutput(func() {

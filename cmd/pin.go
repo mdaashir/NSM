@@ -31,7 +31,7 @@ to ensure the specified package version is used in future installations.`,
 			utils.Warn("Version format might be invalid. Consider using semantic versioning (e.g., v1.0.0 or 1.0.0)")
 		}
 
-		err := utils.PinPackage(pkg, version)
+		err := utils.PinPackage()
 		if err != nil {
 			return fmt.Errorf("failed to pin package: %v", err)
 		}

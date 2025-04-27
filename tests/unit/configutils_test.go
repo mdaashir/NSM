@@ -14,7 +14,7 @@ func setupTestConfig(t *testing.T) (string, func()) {
 	t.Helper()
 	dir := testutils.CreateTempDir(t)
 
-	// Create test config file
+	// Create a test config file
 	configPath := filepath.Join(dir, "config.yaml")
 	configContent := `channel:
   url: nixos-unstable
@@ -41,7 +41,10 @@ pins:
 	}
 
 	cleanup := func() {
-		os.RemoveAll(dir)
+		err := os.RemoveAll(dir)
+		if err != nil {
+			return
+		}
 		viper.Reset()
 	}
 
@@ -102,7 +105,7 @@ func TestMigrateConfig(t *testing.T) {
 	})
 
 	t.Run("migrate old channel format", func(t *testing.T) {
-		// Set old format
+		// Set the old format
 		viper.Set("channel", "nixos-unstable")
 		viper.Set("channel.url", nil)
 

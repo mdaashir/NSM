@@ -11,13 +11,13 @@ import (
 
 // isSafePath checks if a file path is safe to access
 func isSafePath(path string) bool {
-	// Convert to absolute path
+	// Convert to an absolute path
 	absPath, err := filepath.Abs(path)
 	if err != nil {
 		return false
 	}
 
-	// Check if path contains suspicious patterns
+	// Check if a path contains suspicious patterns
 	suspicious := []string{
 		"..", // Parent directory traversal
 		"~",  // Home directory
@@ -112,4 +112,9 @@ func GetProjectConfigType() string {
 		return "flake.nix"
 	}
 	return ""
+}
+
+func PinPackage() interface{} {
+
+	return nil
 }

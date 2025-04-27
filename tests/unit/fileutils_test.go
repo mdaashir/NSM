@@ -11,7 +11,12 @@ import (
 
 func TestFileExists(t *testing.T) {
 	dir := testutils.CreateTempDir(t)
-	defer os.RemoveAll(dir)
+	defer func(path string) {
+		err := os.RemoveAll(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}(dir)
 
 	testCases := []struct {
 		name     string
@@ -22,7 +27,10 @@ func TestFileExists(t *testing.T) {
 			name: "existing file",
 			setup: func() string {
 				path := filepath.Join(dir, "test.txt")
-				os.WriteFile(path, []byte("test"), 0644)
+				err := os.WriteFile(path, []byte("test"), 0644)
+				if err != nil {
+					return ""
+				}
 				return path
 			},
 			expected: true,
@@ -38,7 +46,10 @@ func TestFileExists(t *testing.T) {
 			name: "directory",
 			setup: func() string {
 				path := filepath.Join(dir, "testdir")
-				os.Mkdir(path, 0755)
+				err := os.Mkdir(path, 0755)
+				if err != nil {
+					return ""
+				}
 				return path
 			},
 			expected: false,
@@ -57,10 +68,15 @@ func TestFileExists(t *testing.T) {
 
 func TestBackupFile(t *testing.T) {
 	dir := testutils.CreateTempDir(t)
-	defer os.RemoveAll(dir)
+	defer func(path string) {
+		err := os.RemoveAll(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}(dir)
 
 	t.Run("successful backup", func(t *testing.T) {
-		// Create original file
+		// Create an original file
 		originalPath := filepath.Join(dir, "original.txt")
 		originalContent := "test content"
 		if err := os.WriteFile(originalPath, []byte(originalContent), 0644); err != nil {
@@ -98,14 +114,24 @@ func TestBackupFile(t *testing.T) {
 
 func TestGetProjectConfigType(t *testing.T) {
 	dir := testutils.CreateTempDir(t)
-	defer os.RemoveAll(dir)
+	defer func(path string) {
+		err := os.RemoveAll(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}(dir)
 
-	// Save current directory
+	// Save the current directory
 	origDir, err := os.Getwd()
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.Chdir(origDir)
+	defer func(dir string) {
+		err := os.Chdir(dir)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}(origDir)
 
 	// Change to test directory
 	if err := os.Chdir(dir); err != nil {
@@ -149,8 +175,14 @@ func TestGetProjectConfigType(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			// Clean up previous files
-			os.Remove("shell.nix")
-			os.Remove("flake.nix")
+			err := os.Remove("shell.nix")
+			if err != nil {
+				return
+			}
+			err = os.Remove("flake.nix")
+			if err != nil {
+				return
+			}
 
 			// Create test files
 			for file, shouldExist := range tc.files {
@@ -171,13 +203,26 @@ func TestGetProjectConfigType(t *testing.T) {
 func TestEnsureConfigDir(t *testing.T) {
 	// Save original XDG_CONFIG_HOME
 	origXdgConfig := os.Getenv("XDG_CONFIG_HOME")
-	defer os.Setenv("XDG_CONFIG_HOME", origXdgConfig)
+	defer func(key, value string) {
+		err := os.Setenv(key, value)
+		if err != nil {
+			return
+		}
+	}("XDG_CONFIG_HOME", origXdgConfig)
 
 	t.Run("with XDG_CONFIG_HOME", func(t *testing.T) {
 		dir := testutils.CreateTempDir(t)
-		defer os.RemoveAll(dir)
+		defer func(path string) {
+			err := os.RemoveAll(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+		}(dir)
 
-		os.Setenv("XDG_CONFIG_HOME", dir)
+		err := os.Setenv("XDG_CONFIG_HOME", dir)
+		if err != nil {
+			return
+		}
 
 		configDir, err := utils.EnsureConfigDir()
 		if err != nil {
@@ -193,7 +238,10 @@ func TestEnsureConfigDir(t *testing.T) {
 	})
 
 	t.Run("without XDG_CONFIG_HOME", func(t *testing.T) {
-		os.Setenv("XDG_CONFIG_HOME", "")
+		err := os.Setenv("XDG_CONFIG_HOME", "")
+		if err != nil {
+			return
+		}
 
 		configDir, err := utils.EnsureConfigDir()
 		if err != nil {

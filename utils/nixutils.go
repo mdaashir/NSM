@@ -1,44 +1,91 @@
-// Package utils provides utility functions for the NSM application
+// Package utils provides utility functions for NSM
 package utils
 
 import (
 	"encoding/json"
 	"fmt"
 	"os/exec"
-	"regexp"
 	"strings"
 )
 
-// isValidCommandArg validates command line arguments for safety
-func isValidCommandArg(arg string) bool {
-	// Only allow alphanumeric characters, dots, dashes, underscores
-	matched, _ := regexp.MatchString(`^[a-zA-Z0-9.\-_]+$`, arg)
-	return matched
-}
+// GetPackageVersion retrieves the version of an installed package by parsing the nix-env output
+func GetPackageVersion(pkg string) (string, error) {
+	// Run nix-env --query --JSON to get package information
+	cmd := exec.Command("nix-env", "--query", "--json")
+	output, err := cmd.Output()
+	if err != nil {
+		return "", fmt.Errorf("failed to query package info: %v", err)
+	}
 
-// runSafeCommand executes a command with validated arguments
-func runSafeCommand(command string, args ...string) ([]byte, error) {
-	// Validate each argument
-	for _, arg := range args {
-		if !isValidCommandArg(arg) {
-			return nil, fmt.Errorf("invalid command argument: %s", arg)
+	// Parse JSON output
+	var pkgInfo map[string]struct {
+		Version string `json:"version"`
+	}
+	if err := json.Unmarshal(output, &pkgInfo); err != nil {
+		return "", fmt.Errorf("failed to parse package info: %v", err)
+	}
+
+	// Look for the package version
+	for name, info := range pkgInfo {
+		if strings.HasPrefix(name, "nixpkgs."+pkg) {
+			return info.Version, nil
 		}
 	}
 
-	cmd := exec.Command(command, args...)
-	return cmd.Output()
+	return "", fmt.Errorf("package %s not found", pkg)
 }
 
-// CheckFlakeSupport checks if flakes are supported
+// GetNixVersion gets the installed Nix version
+func GetNixVersion() (string, error) {
+	cmd := exec.Command("nix", "--version")
+	output, err := cmd.Output()
+	if err != nil {
+		return "", fmt.Errorf("failed to get Nix version: %v", err)
+	}
+	return strings.TrimSpace(string(output)), nil
+}
+
+// CheckFlakeSupport checks if Nix flakes are enabled
 func CheckFlakeSupport() bool {
-	output, err := runSafeCommand("nix", "--version")
+	version, err := GetNixVersion()
 	if err != nil {
 		return false
 	}
 
-	// Flakes are supported in Nix 2.4+
-	version := string(output)
-	return strings.Contains(version, "nix (Nix) 2.") && !strings.Contains(version, "nix (Nix) 2.3")
+	// Extract version number
+	parts := strings.Fields(version)
+	if len(parts) < 3 {
+		return false
+	}
+	versionNum := parts[2]
+
+	// Check if a version is >= 2.4 (when flakes became stable)
+	major, minor := 0, 0
+	_, err = fmt.Sscanf(versionNum, "%d.%d", &major, &minor)
+	if err != nil {
+		return false
+	}
+	return major > 2 || (major == 2 && minor >= 4)
+}
+
+// GetChannelInfo gets the current Nixpkgs channel information
+func GetChannelInfo() (string, error) {
+	cmd := exec.Command("nix-channel", "--list")
+	output, err := cmd.Output()
+	if err != nil {
+		return "", fmt.Errorf("failed to get channel info: %v", err)
+	}
+	return strings.TrimSpace(string(output)), nil
+}
+
+// GetNixpkgsRevision gets the current Nixpkgs revision
+func GetNixpkgsRevision() (string, error) {
+	cmd := exec.Command("nix-instantiate", "--eval", "-E", "<nixpkgs>.rev")
+	output, err := cmd.Output()
+	if err != nil {
+		return "", fmt.Errorf("failed to get nixpkgs revision: %v", err)
+	}
+	return strings.Trim(string(output), "\"\n"), nil
 }
 
 // ValidatePackage checks if a package name is valid
@@ -47,184 +94,79 @@ func ValidatePackage(pkg string) bool {
 		return false
 	}
 
-	// Basic validation - alphanumeric with some special chars
-	matched, _ := regexp.MatchString(`^[a-zA-Z0-9.\-_]+$`, pkg)
-	return matched
-}
+	// Allow alphanumeric, dash, dot, and underscore
+	validChars := "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_."
 
-// GetChannelInfo gets current channel information
-func GetChannelInfo() (string, error) {
-	cmd := exec.Command("nix-channel", "--list")
-	output, err := cmd.Output()
-	if err != nil {
-		return "", err
+	for _, c := range pkg {
+		if !strings.ContainsRune(validChars, c) {
+			return false
+		}
 	}
-	return strings.TrimSpace(string(output)), nil
-}
-
-// GetNixpkgsRevision gets the current nixpkgs revision
-func GetNixpkgsRevision() (string, error) {
-	cmd := exec.Command("nix-instantiate", "--eval", "-E", "<nixpkgs>.lib.version")
-	output, err := cmd.Output()
-	if err != nil {
-		return "", err
-	}
-	return strings.Trim(string(output), "\""), nil
+	return true
 }
 
 // ExtractShellNixPackages extracts package names from shell.nix content
 func ExtractShellNixPackages(content string) []string {
 	var packages []string
+	lines := strings.Split(content, "\n")
+	inPackages := false
 
-	// Find the packages section using regex
-	re := regexp.MustCompile(`packages\s*=\s*with\s+pkgs;\s*\[([\s\S]*?)]`)
-	matches := re.FindStringSubmatch(content)
-	if len(matches) < 2 {
-		return packages
-	}
-
-	// Extract package names
-	pkgSection := matches[1]
-	pkgRe := regexp.MustCompile(`\b([a-zA-Z0-9.\-_]+)\b`)
-	for _, pkg := range pkgRe.FindAllString(pkgSection, -1) {
-		if pkg != "with" && pkg != "pkgs" {
-			packages = append(packages, pkg)
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if strings.Contains(trimmed, "packages = with pkgs; [") {
+			inPackages = true
+			continue
+		}
+		if inPackages {
+			if strings.Contains(trimmed, "];") {
+				break
+			}
+			if trimmed != "" && !strings.HasPrefix(trimmed, "#") {
+				packages = append(packages, trimmed)
+			}
 		}
 	}
-
 	return packages
 }
 
 // ExtractFlakePackages extracts package names from flake.nix content
 func ExtractFlakePackages(content string) []string {
 	var packages []string
+	lines := strings.Split(content, "\n")
+	inBuildInputs := false
 
-	// Find the buildInputs section using regex
-	re := regexp.MustCompile(`buildInputs\s*=\s*with\s+[^;]+;\s*\[([\s\S]*?)]`)
-	matches := re.FindStringSubmatch(content)
-	if len(matches) < 2 {
-		return packages
-	}
-
-	// Extract package names
-	pkgSection := matches[1]
-	pkgRe := regexp.MustCompile(`\b([a-zA-Z0-9.\-_]+)\b`)
-	for _, pkg := range pkgRe.FindAllString(pkgSection, -1) {
-		if pkg != "with" && !strings.Contains(pkg, "pkgs") {
-			packages = append(packages, pkg)
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if strings.Contains(trimmed, "buildInputs") {
+			inBuildInputs = true
+			continue
+		}
+		if inBuildInputs && strings.Contains(trimmed, "];") {
+			break
+		}
+		if inBuildInputs {
+			if trimmed != "" && !strings.HasPrefix(trimmed, "#") {
+				packages = append(packages, trimmed)
+			}
 		}
 	}
-
 	return packages
 }
 
-// GetInstalledPackages returns a list of packages installed in the current env
+// GetInstalledPackages returns a list of installed packages
 func GetInstalledPackages() ([]string, error) {
-	cmd := exec.Command("nix-env", "--query", "--installed")
+	cmd := exec.Command("nix-env", "--query")
 	output, err := cmd.Output()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to query installed packages: %v", err)
 	}
 
+	lines := strings.Split(string(output), "\n")
 	var packages []string
-	for _, line := range strings.Split(string(output), "\n") {
+	for _, line := range lines {
 		if pkg := strings.TrimSpace(line); pkg != "" {
 			packages = append(packages, pkg)
 		}
 	}
-
 	return packages, nil
-}
-
-// PinPackage pins a specific package to a version
-func PinPackage(pkg string, version string) error {
-	config, err := LoadConfig()
-	if err != nil {
-		return fmt.Errorf("failed to load config: %w", err)
-	}
-
-	if config.Pins == nil {
-		config.Pins = make(map[string]string)
-	}
-
-	// Check if a version exists in nixpkgs
-	exists, err := checkVersionExists(pkg, version)
-	if err != nil {
-		return fmt.Errorf("failed to verify version: %w", err)
-	}
-
-	if !exists {
-		return fmt.Errorf("version %s not found for package %s", version, pkg)
-	}
-
-	// Update pin in config
-	config.Pins[pkg] = version
-
-	// Save updated config
-	err = SaveConfig(config)
-	if err != nil {
-		return fmt.Errorf("failed to save config: %w", err)
-	}
-
-	return nil
-}
-
-func checkVersionExists(pkg string, version string) (bool, error) {
-	cmd := exec.Command("nix", "search", "nixpkgs#"+pkg, "--json")
-	output, err := cmd.Output()
-	if err != nil {
-		return false, fmt.Errorf("failed to search package: %w", err)
-	}
-
-	var searchResult map[string]interface{}
-	if err := json.Unmarshal(output, &searchResult); err != nil {
-		return false, fmt.Errorf("failed to parse search results: %w", err)
-	}
-
-	// Check if the version exists in search results
-	for _, info := range searchResult {
-		if pkgInfo, ok := info.(map[string]interface{}); ok {
-			if ver, exists := pkgInfo["version"].(string); exists {
-				if ver == version {
-					return true, nil
-				}
-			}
-		}
-	}
-
-	return false, nil
-}
-
-// GetNixVersion gets the current Nix version
-func GetNixVersion() (string, error) {
-	cmd := exec.Command("nix", "--version")
-	output, err := cmd.Output()
-	if err != nil {
-		return "", fmt.Errorf("failed to get Nix version: %w", err)
-	}
-	return strings.TrimSpace(string(output)), nil
-}
-
-// GetPackageVersion gets the version of a specific package
-func GetPackageVersion(pkg string) (string, error) {
-	cmd := exec.Command("nix-env", "-qa", pkg, "--json")
-	output, err := cmd.Output()
-	if err != nil {
-		return "", fmt.Errorf("failed to get package version: %w", err)
-	}
-
-	var result map[string]interface{}
-	if err := json.Unmarshal(output, &result); err != nil {
-		return "", fmt.Errorf("failed to parse package info: %w", err)
-	}
-
-	// Get the first matching package version
-	for _, info := range result {
-		if pkgInfo, ok := info.(map[string]interface{}); ok {
-			if version, exists := pkgInfo["version"].(string); exists {
-				return version, nil
-			}
-		}
-	}
-	return "", fmt.Errorf("no version found for package %s", pkg)
 }

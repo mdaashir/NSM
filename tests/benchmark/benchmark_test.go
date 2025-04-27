@@ -77,7 +77,12 @@ pkgs.mkShell {
 // BenchmarkFileOperations benchmarks file-related operations
 func BenchmarkFileOperations(b *testing.B) {
 	dir := testutils.CreateBenchTempDir(b)
-	defer os.RemoveAll(dir)
+	defer func(path string) {
+		err := os.RemoveAll(path)
+		if err != nil {
+
+		}
+	}(dir)
 
 	b.Run("WriteFile", func(b *testing.B) {
 		for i := 0; i < b.N; i++ {
@@ -109,8 +114,14 @@ func BenchmarkFileOperations(b *testing.B) {
 		path := filepath.Join(dir, "test2.txt")
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
-			utils.BackupFile(path)
-			os.Remove(path + ".backup")
+			err := utils.BackupFile(path)
+			if err != nil {
+				return
+			}
+			err = os.Remove(path + ".backup")
+			if err != nil {
+				return
+			}
 		}
 	})
 }
@@ -118,7 +129,12 @@ func BenchmarkFileOperations(b *testing.B) {
 // BenchmarkConfigOperations benchmarks configuration operations
 func BenchmarkConfigOperations(b *testing.B) {
 	dir := testutils.CreateBenchTempDir(b)
-	defer os.RemoveAll(dir)
+	defer func(path string) {
+		err := os.RemoveAll(path)
+		if err != nil {
+
+		}
+	}(dir)
 
 	configPath := filepath.Join(dir, "config.yaml")
 	viper.SetConfigFile(configPath)

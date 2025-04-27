@@ -36,13 +36,26 @@ func TestValidatePackage(t *testing.T) {
 
 func TestCheckFlakeSupport(t *testing.T) {
 	t.Run("flake supported version", func(t *testing.T) {
-		// Create mock nix command that returns version 2.4
+		// Create a mock nix command that returns version 2.4
 		mockPath := testutils.CreateMockCmd(t, "nix", "nix (Nix) 2.4.0", 0)
-		defer os.Remove(mockPath)
+		defer func(name string) {
+			err := os.Remove(name)
+			if err != nil {
+				t.Fatal(err)
+			}
+		}(mockPath)
 
 		oldPath := os.Getenv("PATH")
-		os.Setenv("PATH", filepath.Dir(mockPath))
-		defer os.Setenv("PATH", oldPath)
+		err := os.Setenv("PATH", filepath.Dir(mockPath))
+		if err != nil {
+			return
+		}
+		defer func(key, value string) {
+			err := os.Setenv(key, value)
+			if err != nil {
+				return
+			}
+		}("PATH", oldPath)
 
 		if !utils.CheckFlakeSupport() {
 			t.Error("Expected flake support for Nix 2.4.0")
@@ -51,11 +64,24 @@ func TestCheckFlakeSupport(t *testing.T) {
 
 	t.Run("flake unsupported version", func(t *testing.T) {
 		mockPath := testutils.CreateMockCmd(t, "nix", "nix (Nix) 2.3.0", 0)
-		defer os.Remove(mockPath)
+		defer func(name string) {
+			err := os.Remove(name)
+			if err != nil {
+				t.Fatal(err)
+			}
+		}(mockPath)
 
 		oldPath := os.Getenv("PATH")
-		os.Setenv("PATH", filepath.Dir(mockPath))
-		defer os.Setenv("PATH", oldPath)
+		err := os.Setenv("PATH", filepath.Dir(mockPath))
+		if err != nil {
+			return
+		}
+		defer func(key, value string) {
+			err := os.Setenv(key, value)
+			if err != nil {
+				return
+			}
+		}("PATH", oldPath)
 
 		if utils.CheckFlakeSupport() {
 			t.Error("Expected no flake support for Nix 2.3.0")
@@ -111,11 +137,24 @@ func TestExtractPackages(t *testing.T) {
 func TestGetNixVersion(t *testing.T) {
 	expectedVersion := "nix (Nix) 2.4.0"
 	mockPath := testutils.CreateMockCmd(t, "nix", expectedVersion, 0)
-	defer os.Remove(mockPath)
+	defer func(name string) {
+		err := os.Remove(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}(mockPath)
 
 	oldPath := os.Getenv("PATH")
-	os.Setenv("PATH", filepath.Dir(mockPath))
-	defer os.Setenv("PATH", oldPath)
+	err := os.Setenv("PATH", filepath.Dir(mockPath))
+	if err != nil {
+		return
+	}
+	defer func(key, value string) {
+		err := os.Setenv(key, value)
+		if err != nil {
+			return
+		}
+	}("PATH", oldPath)
 
 	version, err := utils.GetNixVersion()
 	if err != nil {
@@ -128,19 +167,34 @@ func TestGetNixVersion(t *testing.T) {
 }
 
 func TestGetPackageVersion(t *testing.T) {
+	// Create a mock nix-env command that returns package info in JSON format
 	mockOutput := `{
 		"nixpkgs.gcc": {
-			"name": "gcc",
+			"name": "gcc-12.3.0",
 			"version": "12.3.0",
-			"system": "x86_64-linux"
+			"system": "x86_64-linux",
+			"outPath": "/nix/store/...-gcc-12.3.0"
 		}
 	}`
 	mockPath := testutils.CreateMockCmd(t, "nix-env", mockOutput, 0)
-	defer os.Remove(mockPath)
+	defer func(name string) {
+		err := os.Remove(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}(mockPath)
 
 	oldPath := os.Getenv("PATH")
-	os.Setenv("PATH", filepath.Dir(mockPath))
-	defer os.Setenv("PATH", oldPath)
+	err := os.Setenv("PATH", filepath.Dir(mockPath))
+	if err != nil {
+		return
+	}
+	defer func(key, value string) {
+		err := os.Setenv(key, value)
+		if err != nil {
+			return
+		}
+	}("PATH", oldPath)
 
 	version, err := utils.GetPackageVersion("gcc")
 	if err != nil {

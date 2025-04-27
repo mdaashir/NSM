@@ -80,7 +80,7 @@ func LoadConfig() (*Config, error) {
 
 // SaveConfig saves the NSM configuration
 func SaveConfig(config *Config) error {
-	// Set pins in viper
+	// Set pins in a viper
 	if config.Pins != nil {
 		viper.Set("pins", config.Pins)
 	}

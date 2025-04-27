@@ -2,9 +2,7 @@
 package testutils
 
 import (
-	"bytes"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"testing"
@@ -65,30 +63,13 @@ pkgs.mkShell {
 	}
 
 	cleanup := func() {
-		os.RemoveAll(tempDir)
+		err := os.RemoveAll(tempDir)
+		if err != nil {
+			return
+		}
 	}
 
 	return config, cleanup
-}
-
-// AssertFileExists checks if a file exists
-func AssertFileExists(t *testing.T, path string) {
-	t.Helper()
-	if _, err := os.Stat(path); os.IsNotExist(err) {
-		t.Errorf("Expected file %s to exist", path)
-	}
-}
-
-// AssertFileContains checks if a file contains expected content
-func AssertFileContains(t *testing.T, path, expected string) {
-	t.Helper()
-	content, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatalf("Failed to read file %s: %v", path, err)
-	}
-	if string(content) != expected {
-		t.Errorf("File content mismatch.\nGot:\n%s\nWant:\n%s", string(content), expected)
-	}
 }
 
 // AssertDirExists checks if a directory exists
@@ -116,36 +97,6 @@ exit %d
 		t.Fatal(err)
 	}
 	return mockPath
-}
-
-// CaptureOutput captures stdout/stderr output during test execution
-func CaptureOutput(f func()) (string, string) {
-	// Save original stdout/stderr
-	originalStdout := os.Stdout
-	originalStderr := os.Stderr
-
-	// Create pipes for capturing output
-	rOut, wOut, _ := os.Pipe()
-	rErr, wErr, _ := os.Pipe()
-
-	os.Stdout = wOut
-	os.Stderr = wErr
-
-	// Run the function that generates output
-	f()
-
-	// Close writers and restore original stdout/stderr
-	wOut.Close()
-	wErr.Close()
-	os.Stdout = originalStdout
-	os.Stderr = originalStderr
-
-	// Read captured output
-	var stdout, stderr bytes.Buffer
-	io.Copy(&stdout, rOut)
-	io.Copy(&stderr, rErr)
-
-	return stdout.String(), stderr.String()
 }
 
 // CreateBenchTempDir creates a temporary directory for benchmarks
@@ -194,7 +145,10 @@ pkgs.mkShell {
 	}
 
 	cleanup := func() {
-		os.RemoveAll(tempDir)
+		err := os.RemoveAll(tempDir)
+		if err != nil {
+			return
+		}
 	}
 
 	return config, cleanup

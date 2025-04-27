@@ -26,12 +26,17 @@ pkgs.mkShell {
 		t.Fatal(err)
 	}
 
-	// Save current directory
+	// Save the current directory
 	origDir, err := os.Getwd()
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.Chdir(origDir)
+	defer func(dir string) {
+		err := os.Chdir(dir)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}(origDir)
 
 	// Change to test directory
 	if err := os.Chdir(config.TempDir); err != nil {
@@ -51,11 +56,11 @@ pkgs.mkShell {
 		}
 
 		// Pin a package version
-		if err := utils.PinPackage("gcc", "12.3.0"); err != nil {
+		if err := utils.PinPackage(); err != nil {
 			t.Errorf("Failed to pin package: %v", err)
 		}
 
-		// Verify pin was saved
+		// Verify the pin was saved
 		cfg, err := utils.LoadConfig()
 		if err != nil {
 			t.Fatal(err)
