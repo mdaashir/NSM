@@ -37,22 +37,15 @@ jobs:
         uses: DeterminateSystems/nix-installer-action@main
 
       - name: Verify Go modules
-        shell: ${{ runner.os == 'Windows' && 'pwsh' || 'bash' }}
         run: |
           go mod verify
           go mod tidy
-          if ("${{ runner.os }}" -eq "Windows") {
-            $status = git status --porcelain go.mod go.sum
-            if ($status) {
-              Write-Error "go.mod or go.sum is not up to date"
-              exit 1
-            }
-          } else {
-            if [ -n "$(git status --porcelain go.mod go.sum)" ]; then
-              echo "go.mod or go.sum is not up to date"
-              exit 1
-            fi
-          }
+          status=$(git status --porcelain go.mod go.sum)
+          if [ -n "$status" ]; then
+            echo "go.mod or go.sum is not up to date"
+            exit 1
+          fi
+        shell: bash
 
       - name: Cache Go build and test cache
         uses: actions/cache@v4
@@ -70,31 +63,31 @@ jobs:
         run: go mod download
 
       - name: Run Unit Tests with caching
-        shell: bash
         run: |
-          if [[ "${{ runner.os }}" == "Windows" ]]; then
+          if [ "$RUNNER_OS" == "Windows" ]; then
             go test -v -count=1 -race -parallel "$NUMBER_OF_PROCESSORS" ./tests/unit/... -test.cache
           else
             go test -v -count=1 -race -parallel "$(nproc)" ./tests/unit/... -test.cache
           fi
+        shell: bash
 
       - name: Run Integration Tests with caching
-        shell: bash
         run: |
-          if [[ "${{ runner.os }}" == "Windows" ]]; then
+          if [ "$RUNNER_OS" == "Windows" ]; then
             go test -v -count=1 -race -parallel "$NUMBER_OF_PROCESSORS" ./tests/integration/... -test.cache
           else
             go test -v -count=1 -race -parallel "$(nproc)" ./tests/integration/... -test.cache
           fi
+        shell: bash
 
       - name: Run Benchmarks with caching
-        shell: bash
         run: |
-          if [[ "${{ runner.os }}" == "Windows" ]]; then
+          if [ "$RUNNER_OS" == "Windows" ]; then
             go test -v -count=1 -bench=. ./tests/benchmark/... -test.cache
           else
             go test -v -count=1 -bench=. ./tests/benchmark/... -test.cache
           fi
+        shell: bash
 
       - name: Generate Test Coverage
         run: go test -race -coverprofile=coverage.out -covermode=atomic ./...
