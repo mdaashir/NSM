@@ -11,7 +11,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-
 // isValidShellArgs validates shell command arguments
 func isValidShellArgs(args []string) bool {
 	validFlags := map[string]bool{

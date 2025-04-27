@@ -132,7 +132,7 @@ func BenchmarkConfigOperations(b *testing.B) {
 	defer func(path string) {
 		err := os.RemoveAll(path)
 		if err != nil {
-
+			b.Fatal(err)
 		}
 	}(dir)
 

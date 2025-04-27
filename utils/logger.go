@@ -55,10 +55,7 @@ func formatMessage(level LogLevel, format string, args ...interface{}) string {
 		color = "\033[35m" // Magenta
 	}
 
-	message := fmt.Sprintf(format, args...)
-	if strings.HasSuffix(message, "\n") {
-		message = strings.TrimSuffix(message, "\n")
-	}
+	message := strings.TrimSuffix(fmt.Sprintf(format, args...), "\n")
 
 	// Check if we should use colors
 	if os.Getenv("NO_COLOR") != "" || os.Getenv("TERM") == "dumb" {

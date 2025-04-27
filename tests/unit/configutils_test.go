@@ -2,7 +2,6 @@ package unit
 
 import (
 	"os"
-	"path/filepath"
 	"testing"
 
 	"github.com/mdaashir/NSM/tests/testutils"
@@ -10,35 +9,15 @@ import (
 	"github.com/spf13/viper"
 )
 
-func setupTestConfig(t *testing.T) (string, func()) {
+func setupTestConfig(t *testing.T) func() {
 	t.Helper()
 	dir := testutils.CreateTempDir(t)
 
-	// Create a test config file
-	configPath := filepath.Join(dir, "config.yaml")
-	configContent := `channel:
-  url: nixos-unstable
-shell:
-  format: shell.nix
-default:
-  packages:
-    - gcc
-    - python3
-config_version: 1.0.0
-pins:
-  gcc: "12.3.0"
-  python3: "3.9.0"`
-
-	if err := os.WriteFile(configPath, []byte(configContent), 0600); err != nil {
-		t.Fatal(err)
-	}
-
-	// Configure viper for test
 	viper.Reset()
-	viper.SetConfigFile(configPath)
-	if err := viper.ReadInConfig(); err != nil {
-		t.Fatal(err)
-	}
+	viper.Set("channel.url", "nixos-unstable")
+	viper.Set("shell.format", "shell.nix")
+	viper.Set("default.packages", []string{"gcc", "python3"})
+	viper.Set("config_version", "1.0.0")
 
 	cleanup := func() {
 		err := os.RemoveAll(dir)
@@ -48,11 +27,11 @@ pins:
 		viper.Reset()
 	}
 
-	return configPath, cleanup
+	return cleanup
 }
 
 func TestConfigValidation(t *testing.T) {
-	_, cleanup := setupTestConfig(t)
+	cleanup := setupTestConfig(t)
 	defer cleanup()
 
 	t.Run("valid config", func(t *testing.T) {
@@ -84,7 +63,7 @@ func TestConfigValidation(t *testing.T) {
 }
 
 func TestMigrateConfig(t *testing.T) {
-	_, cleanup := setupTestConfig(t)
+	cleanup := setupTestConfig(t)
 	defer cleanup()
 
 	t.Run("migrate from no version", func(t *testing.T) {
@@ -124,7 +103,7 @@ func TestMigrateConfig(t *testing.T) {
 }
 
 func TestLoadConfig(t *testing.T) {
-	_, cleanup := setupTestConfig(t)
+	cleanup := setupTestConfig(t)
 	defer cleanup()
 
 	config, err := utils.LoadConfig()
@@ -150,7 +129,7 @@ func TestLoadConfig(t *testing.T) {
 }
 
 func TestSaveConfig(t *testing.T) {
-	_, cleanup := setupTestConfig(t)
+	cleanup := setupTestConfig(t)
 	defer cleanup()
 
 	// Modify config
