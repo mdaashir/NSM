@@ -1,4 +1,4 @@
-version: 1
+version: 2
 
 # Build settings
 builds:
@@ -107,7 +107,7 @@ dockers:
       - 'ghcr.io/mdaashir/nsm:{{ .Version }}'
       - 'ghcr.io/mdaashir/nsm:latest'
     dockerfile: Dockerfile
-    use: docker
+    use: buildx
     build_flag_templates:
       - '--platform=linux/amd64'
       - '--platform=linux/arm64'

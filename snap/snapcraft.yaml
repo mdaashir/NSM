@@ -33,5 +33,7 @@ parts:
       - nix
     override-build: |
       craftctl default
+      # Build the binary
+      go build -o $CRAFT_PART_INSTALL/bin/nsm
       # Ensure executable permissions
       chmod +x $CRAFT_PART_INSTALL/bin/nsm

@@ -29,3 +29,6 @@ go.work.sum
 # idea
 .idea
 .run
+
+# GoReleaser
+sbom.json
