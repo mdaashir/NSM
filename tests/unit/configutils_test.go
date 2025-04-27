@@ -79,7 +79,7 @@ func TestConfigValidation(t *testing.T) {
 }
 
 func TestMigrateConfig(t *testing.T) {
-	configPath, cleanup := setupTestConfig(t)
+	_, cleanup := setupTestConfig(t)
 	defer cleanup()
 
 	t.Run("migrate from no version", func(t *testing.T) {
@@ -145,7 +145,7 @@ func TestLoadConfig(t *testing.T) {
 }
 
 func TestSaveConfig(t *testing.T) {
-	configPath, cleanup := setupTestConfig(t)
+	_, cleanup := setupTestConfig(t)
 	defer cleanup()
 
 	// Modify config
