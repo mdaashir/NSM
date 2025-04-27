@@ -107,13 +107,16 @@ func GetConfigSummary() map[string]interface{} {
 
 // MigrateConfig handles configuration format changes
 func MigrateConfig() error {
+	var needsSave bool
+
 	// Always check and migrate channel URL first
 	if viper.IsSet("channel") {
 		oldChannel := viper.GetString("channel")
-		// Only migrate if channel.url is not already set
+		// Only migrate if channel.url is not already set and we have a value
 		if oldChannel != "" && !viper.IsSet("channel.url") {
 			viper.Set("channel.url", oldChannel)
-			viper.Set("channel", nil)
+			viper.Set("channel", nil) // Remove old key
+			needsSave = true
 			Debug("Migrated channel format from %q to channel.url", oldChannel)
 		}
 	}
@@ -122,30 +125,36 @@ func MigrateConfig() error {
 	if !viper.IsSet("config_version") {
 		// Set the initial version
 		viper.Set("config_version", "1.0.0")
+		needsSave = true
 
 		// Ensure default.packages exists as empty slice if not set
 		if !viper.IsSet("default.packages") {
 			viper.Set("default.packages", []string{})
+			needsSave = true
 		}
 
 		// Ensure shell.format is set
 		if !viper.IsSet("shell.format") {
 			viper.Set("shell.format", "shell.nix")
+			needsSave = true
 		}
 
 		Debug("Initialized missing configuration settings")
 	}
 
-	// Save changes with error handling
-	err := viper.WriteConfig()
-	if err != nil {
-		// Try SafeWriteConfig as fallback if WriteConfig fails
-		if err := viper.SafeWriteConfig(); err != nil {
-			return fmt.Errorf("failed to save migrated config: %v", err)
+	// Only save if we made changes
+	if needsSave {
+		// Try WriteConfig first
+		err := viper.WriteConfig()
+		if err != nil {
+			// If WriteConfig fails, try SafeWriteConfig
+			if err := viper.SafeWriteConfig(); err != nil {
+				return fmt.Errorf("failed to save migrated config: %v", err)
+			}
+			Debug("Saved configuration using SafeWriteConfig fallback")
+		} else {
+			Debug("Saved migrated configuration successfully")
 		}
-		Debug("Saved configuration using SafeWriteConfig fallback")
-	} else {
-		Debug("Saved migrated configuration successfully")
 	}
 
 	return nil

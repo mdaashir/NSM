@@ -97,10 +97,21 @@ func TestMigrateConfig(t *testing.T) {
 		viper.Reset()
 		viper.SetConfigName("config")
 		viper.SetConfigType("yaml")
-		viper.AddConfigPath(testutils.CreateTempDir(t))
+		testDir := testutils.CreateTempDir(t)
+		viper.AddConfigPath(testDir)
 
 		// Set up old format
 		viper.Set("channel", "nixos-unstable")
+
+		// Debug logging
+		t.Logf("Before migration - channel: %q, channel.url: %q",
+			viper.GetString("channel"),
+			viper.GetString("channel.url"))
+
+		// Write initial config
+		if err := viper.SafeWriteConfig(); err != nil {
+			t.Fatalf("Failed to write initial config: %v", err)
+		}
 
 		// Ensure channel.url is not set
 		if viper.IsSet("channel.url") {
@@ -109,6 +120,16 @@ func TestMigrateConfig(t *testing.T) {
 
 		if err := utils.MigrateConfig(); err != nil {
 			t.Fatalf("MigrateConfig() error = %v", err)
+		}
+
+		// Debug logging
+		t.Logf("After migration - channel: %q, channel.url: %q",
+			viper.GetString("channel"),
+			viper.GetString("channel.url"))
+
+		// Force viper to read the config file again
+		if err := viper.ReadInConfig(); err != nil {
+			t.Fatalf("Failed to read config after migration: %v", err)
 		}
 
 		// Verify migration
