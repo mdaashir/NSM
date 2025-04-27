@@ -13,16 +13,32 @@ func setupTestConfig(t *testing.T) func() {
 	t.Helper()
 	dir := testutils.CreateTempDir(t)
 
+	// Set up config file path
 	viper.Reset()
+	viper.SetConfigName("config")
+	viper.SetConfigType("yaml")
+	viper.AddConfigPath(dir)
+
+	// Set initial config values
 	viper.Set("channel.url", "nixos-unstable")
 	viper.Set("shell.format", "shell.nix")
 	viper.Set("default.packages", []string{"gcc", "python3"})
 	viper.Set("config_version", "1.0.0")
+	viper.Set("pins", map[string]string{
+		"gcc":     "12.3.0",
+		"python3": "3.9.0",
+	})
+
+	// Save initial config
+	err := viper.SafeWriteConfig()
+	if err != nil {
+		t.Fatalf("Failed to write test config: %v", err)
+	}
 
 	cleanup := func() {
 		err := os.RemoveAll(dir)
 		if err != nil {
-			return
+			t.Logf("Failed to cleanup test directory: %v", err)
 		}
 		viper.Reset()
 	}

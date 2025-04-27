@@ -57,14 +57,15 @@ func CheckFlakeSupport() bool {
 	if len(parts) < 3 {
 		return false
 	}
-	versionNum := parts[2]
+	versionNum := strings.TrimSuffix(parts[2], ".0") // Remove trailing .0 if present
 
-	// Check if a version is >= 2.4 (when flakes became stable)
-	major, minor := 0, 0
+	// Check if version is >= 2.4
+	var major, minor int
 	_, err = fmt.Sscanf(versionNum, "%d.%d", &major, &minor)
 	if err != nil {
 		return false
 	}
+
 	return major > 2 || (major == 2 && minor >= 4)
 }
 
@@ -133,41 +134,26 @@ func ExtractShellNixPackages(content string) []string {
 func ExtractFlakePackages(content string) []string {
 	var packages []string
 	lines := strings.Split(content, "\n")
-	inBuildInputs := false
 
 	for _, line := range lines {
 		trimmed := strings.TrimSpace(line)
 		if strings.Contains(trimmed, "buildInputs = [") {
-			inBuildInputs = true
-			// Extract packages if they are on the same line
-			if idx := strings.Index(trimmed, "["); idx != -1 {
-				pkgPart := trimmed[idx+1:]
-				// Remove closing bracket and any trailing characters
-				if endIdx := strings.Index(pkgPart, "]"); endIdx != -1 {
-					pkgPart = pkgPart[:endIdx]
-				}
-				// Split and clean package names
-				for _, pkg := range strings.Fields(pkgPart) {
-					pkg = strings.Trim(pkg, ";,[]")
-					if pkg != "" {
-						packages = append(packages, pkg)
+			// Extract packages from the current line
+			start := strings.Index(trimmed, "[")
+			if start != -1 {
+				end := strings.Index(trimmed, "]")
+				if end != -1 {
+					pkgPart := trimmed[start+1 : end]
+					// Split by whitespace and clean each package name
+					for _, pkg := range strings.Fields(pkgPart) {
+						pkg = strings.TrimSpace(pkg)
+						if pkg != "" {
+							packages = append(packages, pkg)
+						}
 					}
 				}
 			}
-			continue
-		}
-		if inBuildInputs {
-			if strings.Contains(trimmed, "];") {
-				break
-			}
-			if trimmed != "" && !strings.HasPrefix(trimmed, "#") {
-				// Clean the package name
-				cleaned := strings.Trim(trimmed, ";,[]")
-				cleaned = strings.TrimSpace(cleaned)
-				if cleaned != "" {
-					packages = append(packages, cleaned)
-				}
-			}
+			break // Since we found and processed the buildInputs line
 		}
 	}
 	return packages

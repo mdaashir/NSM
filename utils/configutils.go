@@ -113,9 +113,12 @@ func MigrateConfig() error {
 		viper.Set("config_version", "1.0.0")
 
 		// Migrate any old settings
-		if viper.IsSet("channel") && !viper.IsSet("channel.url") {
-			viper.Set("channel.url", viper.Get("channel"))
-			viper.Set("channel", nil)
+		if viper.IsSet("channel") {
+			oldChannel := viper.Get("channel")
+			if str, ok := oldChannel.(string); ok {
+				viper.Set("channel.url", str)
+				viper.Set("channel", nil)
+			}
 		}
 
 		// Ensure default.packages exists as empty slice if not set
@@ -130,7 +133,10 @@ func MigrateConfig() error {
 
 		// Save changes
 		if err := viper.WriteConfig(); err != nil {
-			return fmt.Errorf("failed to save migrated config: %v", err)
+			// If config doesn't exist yet, use SafeWriteConfig
+			if err := viper.SafeWriteConfig(); err != nil {
+				return fmt.Errorf("failed to save migrated config: %v", err)
+			}
 		}
 	}
 
