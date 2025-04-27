@@ -1,3 +1,4 @@
+// Package testutils provides testing utilities for NSM
 package testutils
 
 import (
@@ -37,7 +38,7 @@ func CreateTestConfig(t *testing.T) (*TestConfig, func()) {
 		FlakeNixPath: filepath.Join(tempDir, "flake.nix"),
 	}
 
-	// Create mock shell.nix
+	// Create mock shell.nix with secure permissions
 	shellContent := `{ pkgs ? import <nixpkgs> {} }:
 pkgs.mkShell {
   packages = with pkgs; [
@@ -45,11 +46,11 @@ pkgs.mkShell {
     python3
   ];
 }`
-	if err := os.WriteFile(config.ShellNixPath, []byte(shellContent), 0644); err != nil {
+	if err := os.WriteFile(config.ShellNixPath, []byte(shellContent), 0600); err != nil {
 		t.Fatal(err)
 	}
 
-	// Create mock flake.nix
+	// Create mock flake.nix with secure permissions
 	flakeContent := `{
   description = "Test environment";
   inputs.nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
@@ -59,7 +60,7 @@ pkgs.mkShell {
     };
   };
 }`
-	if err := os.WriteFile(config.FlakeNixPath, []byte(flakeContent), 0644); err != nil {
+	if err := os.WriteFile(config.FlakeNixPath, []byte(flakeContent), 0600); err != nil {
 		t.Fatal(err)
 	}
 

@@ -1,3 +1,4 @@
+// Package utils provides utility functions for the NSM application
 package utils
 
 import (
@@ -8,10 +9,29 @@ import (
 	"strings"
 )
 
+// isValidCommandArg validates command line arguments for safety
+func isValidCommandArg(arg string) bool {
+	// Only allow alphanumeric characters, dots, dashes, underscores
+	matched, _ := regexp.MatchString(`^[a-zA-Z0-9.\-_]+$`, arg)
+	return matched
+}
+
+// runSafeCommand executes a command with validated arguments
+func runSafeCommand(command string, args ...string) ([]byte, error) {
+	// Validate each argument
+	for _, arg := range args {
+		if !isValidCommandArg(arg) {
+			return nil, fmt.Errorf("invalid command argument: %s", arg)
+		}
+	}
+
+	cmd := exec.Command(command, args...)
+	return cmd.Output()
+}
+
 // CheckFlakeSupport checks if flakes are supported
 func CheckFlakeSupport() bool {
-	cmd := exec.Command("nix", "--version")
-	output, err := cmd.Output()
+	output, err := runSafeCommand("nix", "--version")
 	if err != nil {
 		return false
 	}

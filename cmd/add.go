@@ -104,8 +104,8 @@ Examples:
 		// Insert new packages
 		newContent := content[:pos] + newPackages + content[pos:]
 
-		// Write back
-		err = os.WriteFile(configType, []byte(newContent), 0644)
+		// Write back with secure permissions
+		err = os.WriteFile(configType, []byte(newContent), 0600)
 		if err != nil {
 			utils.Error("Error writing to %s: %v", configType, err)
 			return

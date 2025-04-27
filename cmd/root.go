@@ -97,6 +97,15 @@ func setupConfig() {
 		} else {
 			utils.Debug("No config file found, using defaults")
 
+			// Set safe file permissions for config
+			viper.SafeWriteConfigAs = func(filename string) error {
+				err := viper.WriteConfigAs(filename)
+				if err != nil {
+					return err
+				}
+				return os.Chmod(filename, 0600)
+			}
+
 			// Try to create the default configuration file
 			if err := viper.SafeWriteConfig(); err != nil {
 				utils.Debug("Could not create default config file: %v", err)

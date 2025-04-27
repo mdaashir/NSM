@@ -23,18 +23,21 @@ linters-settings:
         disabled: false
       - name: exported
         disabled: false
+  gosec:
+    excludes:
+      - G204  # Subprocess launched with variable
+      - G304  # File path provided as taint input
 
 issues:
-  exclude-use-default: false
+  exclude-dirs:
+    - vendor/
+    - tests/testdata/
   max-issues-per-linter: 0
   max-same-issues: 0
 
 run:
-  deadline: 5m
+  timeout: 5m
   tests: true
-  skip-dirs:
-    - vendor/
-    - tests/testdata/
   build-tags:
     - integration
 

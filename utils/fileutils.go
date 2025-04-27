@@ -1,12 +1,52 @@
+// Package utils provides utility functions for file operations, logging, configuration,
+// and Nix-related functionality for the NSM (Nix Shell Manager) application.
 package utils
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 )
+
+// isSafePath checks if a file path is safe to access
+func isSafePath(path string) bool {
+	// Convert to absolute path
+	absPath, err := filepath.Abs(path)
+	if err != nil {
+		return false
+	}
+
+	// Check if path contains suspicious patterns
+	suspicious := []string{
+		"..", // Parent directory traversal
+		"~",  // Home directory
+		"$",  // Environment variables
+		"|",  // Pipe
+		">",  // Redirection
+		"<",  // Redirection
+		";",  // Command chaining
+		"&",  // Background execution
+		"*",  // Wildcards
+		"?",  // Single character wildcard
+		"[",  // Character classes
+		"]",  // Character classes
+	}
+
+	for _, pattern := range suspicious {
+		if strings.Contains(absPath, pattern) {
+			return false
+		}
+	}
+
+	return true
+}
 
 // FileExists checks if a file exists and is not a directory
 func FileExists(filename string) bool {
+	if !isSafePath(filename) {
+		return false
+	}
 	info, err := os.Stat(filename)
 	if err != nil {
 		return false
@@ -16,11 +56,14 @@ func FileExists(filename string) bool {
 
 // BackupFile creates a backup copy of the given file
 func BackupFile(filename string) error {
+	if !isSafePath(filename) {
+		return fmt.Errorf("unsafe file path: %s", filename)
+	}
 	content, err := os.ReadFile(filename)
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(filename+".backup", content, 0644)
+	return os.WriteFile(filename+".backup", content, 0600)
 }
 
 // EnsureConfigDir ensures the NSM config directory exists and returns its path
@@ -48,6 +91,10 @@ func EnsureConfigDir() (string, error) {
 
 // ReadFile reads the contents of a file as a string
 func ReadFile(filename string) (string, error) {
+	if !isSafePath(filename) {
+		return "", fmt.Errorf("unsafe file path")
+	}
+
 	content, err := os.ReadFile(filename)
 	if err != nil {
 		return "", err

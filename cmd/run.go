@@ -11,6 +11,21 @@ import (
 	"github.com/spf13/cobra"
 )
 
+
+// isValidShellArgs validates shell command arguments
+func isValidShellArgs(args []string) bool {
+	validFlags := map[string]bool{
+		"--pure": true,
+	}
+
+	for _, arg := range args {
+		if !validFlags[arg] {
+			return false
+		}
+	}
+	return true
+}
+
 // runCmd represents the run command
 var runCmd = &cobra.Command{
 	Use:   "run",
@@ -60,6 +75,13 @@ Examples:
 			if isPure {
 				cmdArgs = append(cmdArgs, "--pure")
 			}
+
+			// Validate command arguments
+			if !isValidShellArgs(cmdArgs) {
+				utils.Error("Invalid shell arguments")
+				return
+			}
+
 			c = exec.Command("nix-shell", cmdArgs...)
 		} else {
 			utils.Info("🚀 Launching nix develop...")
@@ -72,6 +94,13 @@ Examples:
 			if isPure {
 				cmdArgs = append(cmdArgs, "--pure")
 			}
+
+			// Validate command arguments
+			if !isValidShellArgs(cmdArgs[1:]) {
+				utils.Error("Invalid shell arguments")
+				return
+			}
+
 			c = exec.Command("nix", cmdArgs...)
 		}
 

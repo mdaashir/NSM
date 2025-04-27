@@ -1,3 +1,4 @@
+// Package benchmark provides performance benchmarking tests for NSM operations
 package benchmark
 
 import (
@@ -77,6 +78,16 @@ pkgs.mkShell {
 func BenchmarkFileOperations(b *testing.B) {
 	dir := testutils.CreateBenchTempDir(b)
 	defer os.RemoveAll(dir)
+
+	b.Run("WriteFile", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			path := filepath.Join(dir, "test.nix")
+			content := "{ pkgs ? import <nixpkgs> {} }: pkgs.mkShell {}"
+			if err := os.WriteFile(path, []byte(content), 0600); err != nil {
+				b.Fatal(err)
+			}
+		}
+	})
 
 	// Create test files
 	files := []string{"test1.txt", "test2.txt", "test3.txt"}

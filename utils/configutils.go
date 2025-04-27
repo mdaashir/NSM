@@ -1,3 +1,4 @@
+// Package utils provides utility functions for NSM configuration management.
 package utils
 
 import (
@@ -58,6 +59,35 @@ func ValidateConfig() []ConfigValidationError {
 	return errors
 }
 
+// Config represents the NSM configuration structure
+type Config struct {
+	Pins map[string]string
+}
+
+// LoadConfig loads and returns the NSM configuration
+func LoadConfig() (*Config, error) {
+	config := &Config{
+		Pins: make(map[string]string),
+	}
+
+	// Get pins from viper
+	if pins := viper.GetStringMapString("pins"); pins != nil {
+		config.Pins = pins
+	}
+
+	return config, nil
+}
+
+// SaveConfig saves the NSM configuration
+func SaveConfig(config *Config) error {
+	// Set pins in viper
+	if config.Pins != nil {
+		viper.Set("pins", config.Pins)
+	}
+
+	return viper.WriteConfig()
+}
+
 // GetConfigSummary returns a human-readable summary of the current configuration
 func GetConfigSummary() map[string]interface{} {
 	// Import circular reference resolved by moving CheckNixInstallation call logic here
@@ -105,33 +135,4 @@ func MigrateConfig() error {
 	}
 
 	return nil
-}
-
-// Config represents the NSM configuration structure
-type Config struct {
-	Pins map[string]string
-}
-
-// LoadConfig loads and returns the NSM configuration
-func LoadConfig() (*Config, error) {
-	config := &Config{
-		Pins: make(map[string]string),
-	}
-
-	// Get pins from viper
-	if pins := viper.GetStringMapString("pins"); pins != nil {
-		config.Pins = pins
-	}
-
-	return config, nil
-}
-
-// SaveConfig saves the NSM configuration
-func SaveConfig(config *Config) error {
-	// Set pins in viper
-	if config.Pins != nil {
-		viper.Set("pins", config.Pins)
-	}
-
-	return viper.WriteConfig()
 }

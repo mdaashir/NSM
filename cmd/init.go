@@ -91,7 +91,7 @@ Examples:
 		}
 
 		// Write the file
-		err = os.WriteFile(filename, []byte(content), 0644)
+		err = os.WriteFile(filename, []byte(content), 0600)
 		if err != nil {
 			utils.Error("Failed to create %s: %v", filename, err)
 			return

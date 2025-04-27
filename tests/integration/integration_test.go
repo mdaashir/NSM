@@ -1,3 +1,5 @@
+// Package integration provides integration tests for NSM functionality,
+// testing the interaction between different components and external dependencies.
 package integration
 
 import (
@@ -8,10 +10,21 @@ import (
 	"github.com/mdaashir/NSM/utils"
 )
 
-// TestPackageManagement tests the full package management lifecycle
+// TestPackageManagement tests package management operations
 func TestPackageManagement(t *testing.T) {
 	config, cleanup := testutils.CreateTestConfig(t)
 	defer cleanup()
+
+	// Create test shell.nix with secure permissions
+	testShellContent := `{ pkgs ? import <nixpkgs> {} }:
+pkgs.mkShell {
+  packages = with pkgs; [
+    gcc
+  ];
+}`
+	if err := os.WriteFile(config.ShellNixPath, []byte(testShellContent), 0600); err != nil {
+		t.Fatal(err)
+	}
 
 	// Save current directory
 	origDir, err := os.Getwd()

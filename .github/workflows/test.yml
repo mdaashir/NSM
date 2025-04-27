@@ -21,6 +21,8 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: ${{ matrix.go-version }}
+          cache: true
+          cache-dependency-path: go.sum
 
       - name: Install Nix
         uses: DeterminateSystems/nix-installer-action@main
@@ -49,8 +51,19 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: '1.24.x'
+          cache: true
+          cache-dependency-path: go.sum
+
+      - name: Cache golangci-lint
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/golangci-lint
+          key: ${{ runner.os }}-golangci-lint-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-golangci-lint-
 
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v4
         with:
           version: latest
+          args: --timeout=5m
