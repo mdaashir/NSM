@@ -8,6 +8,7 @@
 *.dll
 *.so
 *.dylib
+*.nix
 
 # Test binary, built with `go test -c`
 *.test
@@ -27,3 +28,4 @@ go.work.sum
 
 # idea
 .idea
+.run

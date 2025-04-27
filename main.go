@@ -1,14 +1,11 @@
+/*
+Copyright © 2025 Mohamed Aashir S <s.mohamedaashir@gmail.com>
+
+*/
 package main
 
-import (
-	"fmt"
-)
+import "github.com/mdaashir/NSM/cmd"
 
 func main() {
-	s := "gopher"
-	fmt.Printf("Hello and welcome, %s!\n", s)
-
-	for i := 1; i <= 5; i++ {
-		fmt.Println("i =", 100/i)
-	}
+	cmd.Execute()
 }
