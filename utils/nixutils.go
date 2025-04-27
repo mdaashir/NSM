@@ -58,14 +58,16 @@ func CheckFlakeSupport() bool {
 		return false
 	}
 
-	// Get the version string (e.g., "2.4.0")
+	// Get the version string and remove any trailing characters
 	versionStr := strings.TrimRight(parts[2], ")")
 
 	// Parse major and minor versions
 	var major, minor int
-	_, err = fmt.Sscanf(versionStr, "%d.%d", &major, &minor)
-	if err != nil {
-		return false
+	if _, err := fmt.Sscanf(versionStr, "%d.%d", &major, &minor); err != nil {
+		// Try parsing with trailing .0
+		if _, err := fmt.Sscanf(versionStr, "%d.%d.0", &major, &minor); err != nil {
+			return false
+		}
 	}
 
 	// Flakes are supported in Nix 2.4 and above
