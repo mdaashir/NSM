@@ -127,8 +127,15 @@ func ExtractShellNixPackages(content string) []string {
 			if strings.Contains(trimmed, "];") {
 				break
 			}
+			// Skip empty lines and comments
 			if trimmed != "" && !strings.HasPrefix(trimmed, "#") {
-				packages = append(packages, trimmed)
+				// Split by whitespace in case there are multiple packages per line
+				for _, pkg := range strings.Fields(trimmed) {
+					pkg = strings.TrimRight(pkg, ",") // Remove trailing comma if present
+					if pkg != "" {
+						packages = append(packages, pkg)
+					}
+				}
 			}
 		}
 	}

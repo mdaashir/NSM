@@ -114,7 +114,32 @@ func GetProjectConfigType() string {
 	return ""
 }
 
-func PinPackage() interface{} {
+// PinPackage pins a package to a specific version
+func PinPackage() error {
+	// Get current configuration
+	config, err := LoadConfig()
+	if err != nil {
+		return fmt.Errorf("failed to load config: %v", err)
+	}
+
+	// Initialize pins map if needed
+	if config.Pins == nil {
+		config.Pins = make(map[string]string)
+	}
+
+	// Get the package version
+	version, err := GetPackageVersion("gcc")
+	if err != nil {
+		return fmt.Errorf("failed to get package version: %v", err)
+	}
+
+	// Update the pin
+	config.Pins["gcc"] = version
+
+	// Save the configuration
+	if err := SaveConfig(config); err != nil {
+		return fmt.Errorf("failed to save config: %v", err)
+	}
 
 	return nil
 }
