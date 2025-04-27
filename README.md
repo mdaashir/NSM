@@ -15,12 +15,93 @@ A command-line tool to manage Nix development environments with ease.
 
 ## Installation
 
-### Prerequisites
+### Using Nix (recommended)
 
-- Nix package manager installed
+Using flake:
+
+```bash
+nix run github:mdaashir/NSM
+```
+
+Install globally:
+
+```bash
+nix profile install github:mdaashir/NSM
+```
+
+### Package Managers
+
+#### macOS
+
+```bash
+brew install mdaashir/tap/nsm
+```
+
+#### Linux
+
+Debian/Ubuntu:
+
+```bash
+curl -LO https://github.com/mdaashir/NSM/releases/latest/download/nsm_*_linux_amd64.deb
+sudo dpkg -i nsm_*_linux_amd64.deb
+```
+
+Red Hat/Fedora:
+
+```bash
+sudo rpm -i https://github.com/mdaashir/NSM/releases/latest/download/nsm_*_linux_amd64.rpm
+```
+
+Alpine:
+
+```bash
+curl -LO https://github.com/mdaashir/NSM/releases/latest/download/nsm_*_linux_amd64.apk
+sudo apk add --allow-untrusted ./nsm_*_linux_amd64.apk
+```
+
+Arch Linux:
+
+```bash
+curl -LO https://github.com/mdaashir/NSM/releases/latest/download/nsm_*_linux_amd64.pkg.tar.zst
+sudo pacman -U nsm_*_linux_amd64.pkg.tar.zst
+```
+
+Snap:
+
+```bash
+sudo snap install nsm --classic
+```
+
+#### Android (Termux)
+
+```bash
+pkg install nsm
+```
+
+### Docker
+
+```bash
+docker run ghcr.io/mdaashir/nsm:latest
+```
+
+### Binary Installation
+
+Download the appropriate binary for your platform from the [releases page](https://github.com/mdaashir/NSM/releases).
+
+### Build from source
+
+Requirements:
+
 - Go 1.24 or later
+- Make (optional)
 
-### Install from source
+```bash
+git clone https://github.com/mdaashir/NSM.git
+cd NSM
+make build
+```
+
+Or using Go directly:
 
 ```bash
 go install github.com/mdaashir/NSM@latest

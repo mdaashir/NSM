@@ -6,33 +6,79 @@ builds:
       - linux
       - darwin
       - windows
+      - freebsd
+      - openbsd
+      - netbsd
     goarch:
       - amd64
+      - arm64
+      - arm
+      - 386
+    goarm:
+      - 6
+      - 7
+    ignore:
+      - goos: darwin
+        goarch: 386
+      - goos: darwin
+        goarch: arm
     main: .
     binary: nsm
     ldflags:
       - -s -w
 
-# Archives settings
-archives:
-  - id: nsm
-    name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}_v{{ .Version }}"
-    format_overrides:
-      - goos: windows
-        format: zip
-    files:
-      - README.md
-      - LICENSE
+# Native package formats for Linux
+nfpms:
+  - id: nsm-packages
+    package_name: nsm
+    file_name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    vendor: Mohamed Aashir S
+    homepage: https://github.com/mdaashir/NSM
+    maintainer: Mohamed Aashir S <s.mohamedaashir@gmail.com>
+    description: Nix Shell Manager - A tool to manage Nix development environments
+    license: MIT
+    formats:
+      - deb
+      - rpm
+      - apk
+      - archlinux
+      - termux.deb
+    dependencies:
+      - nix
+    recommends:
+      - git
+
+# macOS specific settings
+brews:
+  - name: nsm
+    description: Nix Shell Manager - A tool to manage Nix development environments
+    homepage: https://github.com/mdaashir/NSM
+    repository:
+      owner: mdaashir
+      name: homebrew-tap
+    license: MIT
+    dependencies:
+      - nix
+
+# Snap package
+snapcrafts:
+  - name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    summary: Nix Shell Manager
+    description: A tool to manage Nix development environments
+    grade: stable
+    confinement: classic
+    base: core22
+    publish: true
 
 # Docker settings
 dockers:
   - image_templates:
       - "ghcr.io/mdaashir/nsm:{{ .Version }}"
       - "ghcr.io/mdaashir/nsm:latest"
+    dockerfile: Dockerfile
     use: docker
     build_flag_templates:
-      - "--platform=linux/amd64"
-    dockerfile: Dockerfile
+      - "--platform=linux/amd64,linux/arm64,linux/arm/v7"
     extra_files:
       - go.mod
       - go.sum
@@ -70,3 +116,12 @@ before:
 # Checksum settings
 checksum:
   name_template: 'checksums.txt'
+
+signs:
+  - cmd: cosign
+    args:
+      - sign-blob
+      - --key=cosign.key
+      - --output=${signature}
+      - ${artifact}
+    artifacts: checksum
