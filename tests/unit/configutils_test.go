@@ -21,7 +21,9 @@ func setupTestConfig(t *testing.T) (string, func()) {
 shell:
   format: shell.nix
 default:
-  packages: []
+  packages:
+    - gcc
+    - python3
 config_version: 1.0.0
 pins:
   gcc: "12.3.0"

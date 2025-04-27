@@ -114,17 +114,13 @@ type Config struct {
 
 // LoadConfig loads and returns the NSM configuration
 func LoadConfig() (*Config, error) {
-	configData := viper.AllSettings()
 	config := &Config{
 		Pins: make(map[string]string),
 	}
 
-	if pins, ok := configData["pins"].(map[string]interface{}); ok {
-		for k, v := range pins {
-			if str, ok := v.(string); ok {
-				config.Pins[k] = str
-			}
-		}
+	// Get pins from viper
+	if pins := viper.GetStringMapString("pins"); pins != nil {
+		config.Pins = pins
 	}
 
 	return config, nil
@@ -132,7 +128,10 @@ func LoadConfig() (*Config, error) {
 
 // SaveConfig saves the NSM configuration
 func SaveConfig(config *Config) error {
-	// Store pins in viper
-	viper.Set("pins", config.Pins)
+	// Set pins in viper
+	if config.Pins != nil {
+		viper.Set("pins", config.Pins)
+	}
+
 	return viper.WriteConfig()
 }
