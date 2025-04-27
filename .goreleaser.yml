@@ -1,12 +1,10 @@
 # Build settings
 builds:
-  - os: [linux, darwin, windows]
-    arch: amd64
-    goos:
+  - os:
       - linux
       - darwin
       - windows
-    goarch:
+    arch:
       - amd64
     main: ./main.go
     binary: nsm
@@ -16,21 +14,26 @@ archives:
   - format: tar.gz
     files:
       - nsm
-    name_template: "{{ .Binary }}_{{ .Os }}_{{ .Arch }}_v{{ .Version }}.tar.gz"
+    name_template: "{{ .Binary }}_{{ .Os }}_{{ .Arch }}_v{{ .Version }}"
 
-# Docker settings (optional)
-dockers:
-  - image: nsm
-    goos: linux
-    goarch: amd64
-    dockerfile: Dockerfile
+# Docker settings
+docker:
+  images:
+    - name: "mdaashir/nsm:{{ .Version }}"
+    - name: "mdaashir/nsm:latest"
+      use: buildx
+      build_flag_templates:
+        - "--platform=linux/amd64"
+      dockerfile: Dockerfile
 
 # Release settings
 changelog:
   sort: asc
   filters:
     exclude:
-      - "exclude-regex"
+      - "^docs:"
+      - "^test:"
+      - "^ci:"
 
 # GitHub release settings
 release:
