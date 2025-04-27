@@ -7,8 +7,17 @@ RUN apk add --no-cache git make gcc musl-dev
 # Set up workspace
 WORKDIR /app
 
-# Copy the pre-built binary
-COPY nsm /nsm
+# Copy Go module files
+COPY go.mod go.sum ./
+
+# Download dependencies
+RUN go mod download
+
+# Copy source code
+COPY . .
+
+# Build the application
+RUN CGO_ENABLED=0 GOOS=linux go build -o nsm
 
 # Final stage
 FROM alpine:latest
@@ -25,7 +34,7 @@ RUN apk add --no-cache curl xz sudo shadow && \
     chown -R nsm:nsm /nix /etc/nix
 
 # Copy binary from builder
-COPY --from=builder --chown=nsm:nsm /nsm /usr/local/bin/nsm
+COPY --from=builder --chown=nsm:nsm /app/nsm /usr/local/bin/nsm
 
 # Switch to non-root user
 USER nsm
