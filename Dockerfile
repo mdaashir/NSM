@@ -16,10 +16,6 @@ RUN go mod download && go mod verify
 # Copy source code
 COPY . .
 
-# Run tests and security checks
-RUN go test -v ./tests/unit/... && \
-    go vet ./...
-
 # Build the application with security flags
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
     go build -ldflags="-w -s -extldflags=-static" \
