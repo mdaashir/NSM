@@ -1,6 +1,5 @@
 /*
 Copyright © 2025 Mohamed Aashir S <s.mohamedaashir@gmail.com>
-
 */
 package cmd
 
@@ -40,7 +39,7 @@ var runCmd = &cobra.Command{
 				fmt.Println("❌ Error running nix develop:", err)
 			}
 		} else {
-			fmt.Println("❌ No shell.nix or flake.nix found. Run 'mytool init' first!")
+			fmt.Println("❌ No shell.nix or flake.nix found. Run 'NSM init' first!")
 		}
 	},
 }
