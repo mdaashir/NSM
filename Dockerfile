@@ -23,7 +23,7 @@ RUN --mount=type=cache,target=/go/pkg/mod \
 COPY . .
 
 # Build the application with optimizations
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-w -s" -v -o /nsm ./main.go
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-w -s" -v -o /nsm .
 
 # Final stage
 FROM alpine:latest
@@ -36,12 +36,12 @@ RUN apk add --no-cache \
     curl \
     xz \
     sudo \
-    shadow \
-    && mkdir -p /nix /etc/nix \
-    && chmod 755 /nix \
-    && echo "sandbox = false" > /etc/nix/nix.conf \
-    && echo "experimental-features = nix-command flakes" >> /etc/nix/nix.conf \
-    && chown -R nsm:nsm /nix /etc/nix
+    shadow &&
+    mkdir -p /nix /etc/nix &&
+    chmod 755 /nix &&
+    echo "sandbox = false" >/etc/nix/nix.conf &&
+    echo "experimental-features = nix-command flakes" >>/etc/nix/nix.conf &&
+    chown -R nsm:nsm /nix /etc/nix
 
 # Copy binary from builder
 COPY --from=builder --chown=nsm:nsm /nsm /usr/local/bin/nsm
