@@ -1,0 +1,47 @@
+linters:
+  enable:
+    - gofmt
+    - govet
+    - errcheck
+    - staticcheck
+    - gosimple
+    - ineffassign
+    - revive
+    - misspell
+    - gocyclo
+    - gosec
+    - unconvert
+    - unparam
+    - bodyclose
+
+linters-settings:
+  gocyclo:
+    min-complexity: 15
+  revive:
+    rules:
+      - name: package-comments
+        disabled: false
+      - name: exported
+        disabled: false
+  gosec:
+    excludes:
+      - G204
+      - G304
+
+issues:
+  exclude-dirs:
+    - vendor/
+    - tests/
+    - testdata/
+  max-issues-per-linter: 0
+  max-same-issues: 0
+
+run:
+  timeout: 5m
+  tests: true
+  build-tags:
+    - integration
+
+output:
+  print-issued-lines: true
+  print-linter-name: true

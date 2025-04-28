@@ -1,47 +1,56 @@
-linters:
-  enable:
-    - gofmt
-    - govet
-    - errcheck
-    - staticcheck
-    - gosimple
-    - ineffassign
-    - revive
-    - misspell
-    - gocyclo
-    - gosec
-    - unconvert
-    - unparam
-    - bodyclose
-
-linters-settings:
-  gocyclo:
-    min-complexity: 15
-  revive:
-    rules:
-      - name: package-comments
-        disabled: false
-      - name: exported
-        disabled: false
-  gosec:
-    excludes:
-      - G204  # Subprocess launched with variable
-      - G304  # File path provided as taint input
-
-issues:
-  exclude-dirs:
-    - vendor/
-    - tests/testdata/
-  max-issues-per-linter: 0
-  max-same-issues: 0
-
+version: "2"
 run:
-  timeout: 5m
-  tests: true
   build-tags:
     - integration
-
-output:
-  format: colored-line-number
-  print-issued-lines: true
-  print-linter-name: true
+  tests: true
+linters:
+  enable:
+    - bodyclose
+    - gocyclo
+    - gosec
+    - misspell
+    - revive
+    - unconvert
+    - unparam
+  settings:
+    gocyclo:
+      min-complexity: 15
+    gosec:
+      excludes:
+        - G204
+        - G304
+    revive:
+      rules:
+        - name: package-comments
+          disabled: false
+        - name: exported
+          disabled: false
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    paths:
+      - vendor/
+      - tests/
+      - testdata/
+      - third_party$
+      - builtin$
+      - examples$
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
+formatters:
+  enable:
+    - gofmt
+  exclusions:
+    generated: lax
+    paths:
+      - vendor/
+      - tests/
+      - testdata/
+      - third_party$
+      - builtin$
+      - examples$
