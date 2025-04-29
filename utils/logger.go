@@ -4,13 +4,10 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
-	"runtime"
-	"sync"
 	"time"
 )
 
-// LogLevel represents the severity level of a log message
+// LogLevel represents logging levels
 type LogLevel int
 
 const (
@@ -20,193 +17,128 @@ const (
 	ERROR
 )
 
-var levelNames = map[LogLevel]string{
-	DEBUG: "DEBUG",
-	INFO:  "INFO",
-	WARN:  "WARN",
-	ERROR: "ERROR",
-}
-
-// Logger provides structured logging capabilities
+// Logger handles application logging
 type Logger struct {
-	mu       sync.Mutex
-	out      io.Writer
-	level    LogLevel
-	file     *os.File
-	maxSize  int64
-	filename string
+	Out    io.Writer
+	Level  LogLevel
+	Prefix string
 }
 
-var (
-	defaultLogger *Logger
-	once          sync.Once
-)
+var defaultLogger *Logger
+
+// Initialize default logger
+func init() {
+	defaultLogger = &Logger{
+		Out:    os.Stdout,
+		Level:  INFO,
+		Prefix: "",
+	}
+}
 
 // NewLogger creates a new logger instance
-func NewLogger(filename string, level LogLevel, maxSize int64) (*Logger, error) {
-	dir := filepath.Dir(filename)
-	if err := EnsureDir(dir); err != nil {
-		return nil, fmt.Errorf("failed to create log directory: %v", err)
-	}
-
-	file, err := os.OpenFile(filename, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+func NewLogger(path string, level LogLevel, maxSize int64) (*Logger, error) {
+	file, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0600)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open log file: %v", err)
 	}
 
 	return &Logger{
-		out:      io.MultiWriter(os.Stderr, file),
-		level:    level,
-		file:     file,
-		maxSize:  maxSize,
-		filename: filename,
+		Out:    file,
+		Level:  level,
+		Prefix: "",
 	}, nil
+}
+
+// ConfigureLogger configures the default logger
+func ConfigureLogger(level LogLevel, output io.Writer) {
+	defaultLogger.Level = level
+	defaultLogger.Out = output
+}
+
+// Debug logs a debug message
+func Debug(format string, v ...interface{}) {
+	defaultLogger.Debug(format, v...)
+}
+
+// Info logs an info message
+func Info(format string, v ...interface{}) {
+	defaultLogger.Info(format, v...)
+}
+
+// Warn logs a warning message
+func Warn(format string, v ...interface{}) {
+	defaultLogger.Warn(format, v...)
+}
+
+// Error logs an error message
+func Error(format string, v ...interface{}) {
+	defaultLogger.Error(format, v...)
+}
+
+// Success logs a success message
+func Success(format string, v ...interface{}) {
+	defaultLogger.Success(format, v...)
+}
+
+// Tip logs a tip message
+func Tip(format string, v ...interface{}) {
+	defaultLogger.Tip(format, v...)
+}
+
+// Debug logs a debug message
+func (l *Logger) Debug(format string, v ...interface{}) {
+	if l.Level <= DEBUG {
+		l.log("DEBUG", format, v...)
+	}
+}
+
+// Info logs an info message
+func (l *Logger) Info(format string, v ...interface{}) {
+	if l.Level <= INFO {
+		l.log("INFO", format, v...)
+	}
+}
+
+// Warn logs a warning message
+func (l *Logger) Warn(format string, v ...interface{}) {
+	if l.Level <= WARN {
+		l.log("WARN", format, v...)
+	}
+}
+
+// Error logs an error message
+func (l *Logger) Error(format string, v ...interface{}) {
+	if l.Level <= ERROR {
+		l.log("ERROR", format, v...)
+	}
+}
+
+// Success logs a success message
+func (l *Logger) Success(format string, v ...interface{}) {
+	l.log("SUCCESS", format, v...)
+}
+
+// Tip logs a tip message
+func (l *Logger) Tip(format string, v ...interface{}) {
+	l.log("TIP", format, v...)
+}
+
+// log formats and writes a log message
+func (l *Logger) log(level, format string, v ...interface{}) {
+	timestamp := time.Now().Format("2006-01-02 15:04:05")
+	message := fmt.Sprintf(format, v...)
+	fmt.Fprintf(l.Out, "[%s] %s: %s\n", level, timestamp, message)
 }
 
 // GetLogger returns the default logger instance
 func GetLogger() *Logger {
-	once.Do(func() {
-		logger, err := NewLogger("nsm.log", INFO, 10*1024*1024) // 10MB default size
-		if err != nil {
-			// Fallback to stderr if file logging fails
-			defaultLogger = &Logger{out: os.Stderr, level: INFO}
-			defaultLogger.Error("Failed to initialize file logger: %v", err)
-			return
-		}
-		defaultLogger = logger
-	})
 	return defaultLogger
 }
 
-// log formats and writes a log message
-func (l *Logger) log(level LogLevel, format string, args ...interface{}) {
-	if level < l.level {
-		return
-	}
-
-	l.mu.Lock()
-	defer l.mu.Unlock()
-
-	// Check file size and rotate if needed
-	if l.file != nil {
-		if info, err := l.file.Stat(); err == nil && info.Size() > l.maxSize {
-			l.rotate()
-		}
-	}
-
-	// Get caller information
-	_, file, line, ok := runtime.Caller(2)
-	if !ok {
-		file = "unknown"
-		line = 0
-	}
-	file = filepath.Base(file)
-
-	// Format timestamp
-	timestamp := time.Now().Format("2006-01-02 15:04:05.000")
-
-	// Format message
-	msg := fmt.Sprintf(format, args...)
-	logLine := fmt.Sprintf("%s [%s] %s:%d: %s\n",
-		timestamp,
-		levelNames[level],
-		file,
-		line,
-		msg,
-	)
-
-	// Write to output
-	if _, err := io.WriteString(l.out, logLine); err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to write log: %v\n", err)
-	}
-}
-
-// rotate moves the current log file to a timestamped backup
-func (l *Logger) rotate() {
-	if l.file == nil {
-		return
-	}
-
-	// Close current file
-	l.file.Close()
-
-	// Generate backup name with timestamp
-	timestamp := time.Now().Format("20060102-150405")
-	backupName := fmt.Sprintf("%s.%s", l.filename, timestamp)
-
-	// Rename current log file to backup
-	if err := os.Rename(l.filename, backupName); err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to rotate log file: %v\n", err)
-		return
-	}
-
-	// Open new log file
-	file, err := os.OpenFile(l.filename, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to create new log file: %v\n", err)
-		return
-	}
-
-	// Update logger with new file
-	l.file = file
-	l.out = io.MultiWriter(os.Stderr, file)
-}
-
-// Debug logs a debug message
-func (l *Logger) Debug(format string, args ...interface{}) {
-	l.log(DEBUG, format, args...)
-}
-
-// Info logs an info message
-func (l *Logger) Info(format string, args ...interface{}) {
-	l.log(INFO, format, args...)
-}
-
-// Warn logs a warning message
-func (l *Logger) Warn(format string, args ...interface{}) {
-	l.log(WARN, format, args...)
-}
-
-// Error logs an error message
-func (l *Logger) Error(format string, args ...interface{}) {
-	l.log(ERROR, format, args...)
-}
-
-// SetLevel changes the logging level
-func (l *Logger) SetLevel(level LogLevel) {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	l.level = level
-}
-
-// Close properly closes the logger
+// Close closes the logger output
 func (l *Logger) Close() error {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-
-	if l.file != nil {
-		if err := l.file.Close(); err != nil {
-			return fmt.Errorf("failed to close log file: %v", err)
-		}
-		l.file = nil
+	if closer, ok := l.Out.(io.Closer); ok {
+		return closer.Close()
 	}
 	return nil
-}
-
-// Global convenience functions that use the default logger
-
-func Debug(format string, args ...interface{}) {
-	GetLogger().Debug(format, args...)
-}
-
-func Info(format string, args ...interface{}) {
-	GetLogger().Info(format, args...)
-}
-
-func Warn(format string, args ...interface{}) {
-	GetLogger().Warn(format, args...)
-}
-
-func Error(format string, args ...interface{}) {
-	GetLogger().Error(format, args...)
 }

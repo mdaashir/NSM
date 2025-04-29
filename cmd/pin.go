@@ -4,9 +4,6 @@ Copyright © 2025 Mohamed Aashir S <s.mohamedaashir@gmail.com>
 package cmd
 
 import (
-	"fmt"
-	"strings"
-
 	"github.com/mdaashir/NSM/utils"
 
 	"github.com/spf13/cobra"
@@ -18,29 +15,26 @@ var pinCmd = &cobra.Command{
 	Long: `Pin a package to a specific version. This will update your NSM configuration
 to ensure the specified package version is used in future installations.`,
 	Args: cobra.ExactArgs(2),
-	RunE: func(cmd *cobra.Command, args []string) error {
-		pkg := strings.TrimSpace(args[0])
-		version := strings.TrimSpace(args[1])
-
-		if pkg == "" || version == "" {
-			return fmt.Errorf("package name and version cannot be empty")
+	Run: func(cmd *cobra.Command, args []string) {
+		if len(args) < 2 {
+			utils.Error("Please provide both package name and version")
+			utils.Tip("Usage: nsm pin PACKAGE VERSION")
+			return
 		}
 
-		// Validate version format
-		if !strings.HasPrefix(version, "v") && !strings.Contains(version, ".") {
-			utils.Warn("Version format might be invalid. Consider using semantic versioning (e.g., v1.0.0 or 1.0.0)")
+		packageName := args[0]
+		version := args[1]
+
+		if err := utils.PinPackage(packageName, version); err != nil {
+			utils.Error("Failed to pin package: %v", err)
+			return
 		}
 
-		err := utils.PinPackage()
-		if err != nil {
-			return fmt.Errorf("failed to pin package: %v", err)
-		}
-
-		utils.Success("Successfully pinned %s to version %s", pkg, version)
-		return nil
+		utils.Success("Successfully pinned %s to version %s", packageName, version)
+		utils.Tip("Run 'nsm list' to see all pinned packages")
 	},
 }
 
 func init() {
-	rootCmd.AddCommand(pinCmd)
+	RootCmd.AddCommand(pinCmd)
 }

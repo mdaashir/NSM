@@ -72,5 +72,5 @@ environment by running 'nsm run' again.`,
 }
 
 func init() {
-	rootCmd.AddCommand(upgradeCmd)
+	RootCmd.AddCommand(upgradeCmd)
 }

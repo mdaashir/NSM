@@ -1,5 +1,4 @@
-// Package integration provides integration tests for NSM functionality,
-// testing the interaction between different components and external dependencies.
+// Package integration provides integration tests for NSM functionality
 package integration
 
 import (
@@ -7,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/mdaashir/NSM/cmd"
 	"github.com/mdaashir/NSM/tests/testutils"
 )
 
@@ -19,8 +19,8 @@ func TestWorkflowInitToRun(t *testing.T) {
 	testutils.WithWorkDir(t, tmpDir, func() {
 		// Test init command
 		stdout, stderr := testutils.CaptureOutput(t, func() {
-			rootCmd.SetArgs([]string{"init"})
-			if err := rootCmd.Execute(); err != nil {
+			cmd.RootCmd.SetArgs([]string{"init"})
+			if err := cmd.RootCmd.Execute(); err != nil {
 				t.Fatalf("init command failed: %v", err)
 			}
 		})
@@ -34,9 +34,9 @@ func TestWorkflowInitToRun(t *testing.T) {
 		}
 
 		// Test add command
-		stdout, stderr = testutils.CaptureOutput(t, func() {
-			rootCmd.SetArgs([]string{"add", "gcc"})
-			if err := rootCmd.Execute(); err != nil {
+		output, stderr := testutils.CaptureOutput(t, func() {
+			cmd.RootCmd.SetArgs([]string{"add", "gcc"})
+			if err := cmd.RootCmd.Execute(); err != nil {
 				t.Fatalf("add command failed: %v", err)
 			}
 		})
@@ -44,8 +44,8 @@ func TestWorkflowInitToRun(t *testing.T) {
 		if stderr != "" {
 			t.Errorf("Unexpected stderr output: %s", stderr)
 		}
-		if !strings.Contains(stdout, "Added package") {
-			t.Errorf("Expected success message, got: %s", stdout)
+		if !strings.Contains(output, "Added package") {
+			t.Errorf("Expected success message, got: %s", output)
 		}
 
 		// Verify package was added to shell.nix
@@ -68,8 +68,8 @@ func TestFlakeWorkflow(t *testing.T) {
 	testutils.WithWorkDir(t, tmpDir, func() {
 		// Test init with flake
 		stdout, stderr := testutils.CaptureOutput(t, func() {
-			rootCmd.SetArgs([]string{"init", "--flake"})
-			if err := rootCmd.Execute(); err != nil {
+			cmd.RootCmd.SetArgs([]string{"init", "--flake"})
+			if err := cmd.RootCmd.Execute(); err != nil {
 				t.Fatalf("init command failed: %v", err)
 			}
 		})
@@ -84,14 +84,17 @@ func TestFlakeWorkflow(t *testing.T) {
 
 		// Test flake package operations
 		stdout, stderr = testutils.CaptureOutput(t, func() {
-			rootCmd.SetArgs([]string{"add", "python3", "--flake"})
-			if err := rootCmd.Execute(); err != nil {
+			cmd.RootCmd.SetArgs([]string{"add", "python3", "--flake"})
+			if err := cmd.RootCmd.Execute(); err != nil {
 				t.Fatalf("add command failed: %v", err)
 			}
 		})
 
 		if stderr != "" {
 			t.Errorf("Unexpected stderr output: %s", stderr)
+		}
+		if !strings.Contains(stdout, "Added package") {
+			t.Errorf("Expected success message in stdout, got: %s", stdout)
 		}
 
 		// Verify package was added to flake.nix
@@ -105,37 +108,6 @@ func TestFlakeWorkflow(t *testing.T) {
 	})
 }
 
-func TestConfigOperations(t *testing.T) {
-	tmpDir, cleanup := testutils.TempDir(t)
-	defer cleanup()
-
-	testutils.WithWorkDir(t, tmpDir, func() {
-		// Test config set
-		stdout, stderr := testutils.CaptureOutput(t, func() {
-			rootCmd.SetArgs([]string{"config", "set", "shell.format", "flake.nix"})
-			if err := rootCmd.Execute(); err != nil {
-				t.Fatalf("config set command failed: %v", err)
-			}
-		})
-
-		if stderr != "" {
-			t.Errorf("Unexpected stderr output: %s", stderr)
-		}
-
-		// Test config get
-		stdout, stderr = testutils.CaptureOutput(t, func() {
-			rootCmd.SetArgs([]string{"config", "show"})
-			if err := rootCmd.Execute(); err != nil {
-				t.Fatalf("config show command failed: %v", err)
-			}
-		})
-
-		if !strings.Contains(stdout, "shell.format: flake.nix") {
-			t.Error("Config value not set correctly")
-		}
-	})
-}
-
 func TestErrorHandling(t *testing.T) {
 	testutils.SkipIfNotNix(t)
 
@@ -145,8 +117,10 @@ func TestErrorHandling(t *testing.T) {
 	testutils.WithWorkDir(t, tmpDir, func() {
 		// Test invalid package name
 		_, stderr := testutils.CaptureOutput(t, func() {
-			rootCmd.SetArgs([]string{"add", "invalid-package-name-that-does-not-exist"})
-			rootCmd.Execute()
+			cmd.RootCmd.SetArgs([]string{"add", "invalid-package-name-that-does-not-exist"})
+			if err := cmd.RootCmd.Execute(); err != nil {
+				t.Logf("Expected error executing command: %v", err)
+			}
 		})
 
 		if !strings.Contains(stderr, "package not found") {
@@ -155,12 +129,48 @@ func TestErrorHandling(t *testing.T) {
 
 		// Test invalid config value
 		_, stderr = testutils.CaptureOutput(t, func() {
-			rootCmd.SetArgs([]string{"config", "set", "shell.format", "invalid"})
-			rootCmd.Execute()
+			cmd.RootCmd.SetArgs([]string{"config", "set", "shell.format", "invalid"})
+			if err := cmd.RootCmd.Execute(); err != nil {
+				t.Logf("Expected error executing command: %v", err)
+			}
 		})
 
 		if !strings.Contains(stderr, "must be either 'shell.nix' or 'flake.nix'") {
 			t.Error("Expected error message for invalid config value")
+		}
+	})
+}
+
+func TestConfigOperations(t *testing.T) {
+	tmpDir, cleanup := testutils.TempDir(t)
+	defer cleanup()
+
+	testutils.WithWorkDir(t, tmpDir, func() {
+		// Test config set
+		_, stderr := testutils.CaptureOutput(t, func() {
+			cmd.RootCmd.SetArgs([]string{"config", "set", "shell.format", "flake.nix"})
+			if err := cmd.RootCmd.Execute(); err != nil {
+				t.Fatalf("config set command failed: %v", err)
+			}
+		})
+
+		if stderr != "" {
+			t.Errorf("Unexpected stderr output: %s", stderr)
+		}
+
+		// Test config get
+		output, stderr := testutils.CaptureOutput(t, func() {
+			cmd.RootCmd.SetArgs([]string{"config", "show"})
+			if err := cmd.RootCmd.Execute(); err != nil {
+				t.Fatalf("config show command failed: %v", err)
+			}
+		})
+
+		if !strings.Contains(output, "shell.format: flake.nix") {
+			t.Error("Config value not set correctly")
+		}
+		if stderr != "" {
+			t.Errorf("Unexpected stderr output: %s", stderr)
 		}
 	})
 }
@@ -177,9 +187,9 @@ func TestCleanup(t *testing.T) {
 		testutils.CreateTestFile(t, tmpDir, "flake.nix", "# Test content")
 
 		// Test cleanup command
-		stdout, stderr := testutils.CaptureOutput(t, func() {
-			rootCmd.SetArgs([]string{"clean", "--force"})
-			if err := rootCmd.Execute(); err != nil {
+		_, stderr := testutils.CaptureOutput(t, func() {
+			cmd.RootCmd.SetArgs([]string{"clean", "--force"})
+			if err := cmd.RootCmd.Execute(); err != nil {
 				t.Fatalf("clean command failed: %v", err)
 			}
 		})

@@ -11,7 +11,7 @@ import (
 )
 
 func TestNixEnvironment(t *testing.T) {
-	testDir, cleanup := testutils.SetupTestEnv(t)
+	_, cleanup := testutils.SetupTestEnv(t)
 	defer cleanup()
 
 	// Test nix shell environment detection
@@ -32,29 +32,28 @@ func TestNixEnvironment(t *testing.T) {
 }
 
 func TestFlakeManagement(t *testing.T) {
-	testDir, cleanup := testutils.SetupTestEnv(t)
+	dir, cleanup := testutils.SetupTestEnv(t)
 	defer cleanup()
 
 	// Create test flake
-	flakePath := filepath.Join(testDir, "flake.nix")
-	testutils.CreateTestFlakeNix(t, testDir, []string{"git", "go"})
+	testutils.CreateTestFlakeNix(t, dir, []string{"git", "go"})
 
 	// Test flake initialization
-	err := utils.InitFlake(testDir)
+	err := utils.InitFlake(dir)
 	testutils.AssertNoError(t, err)
 
 	// Test flake lock existence
-	lockPath := filepath.Join(testDir, "flake.lock")
+	lockPath := filepath.Join(dir, "flake.lock")
 	if !utils.FileExists(lockPath) {
 		t.Error("Flake lock file was not created")
 	}
 
 	// Test flake update
-	err = utils.UpdateFlake(testDir)
+	err = utils.UpdateFlake(dir)
 	testutils.AssertNoError(t, err)
 
 	// Test invalid flake handling
-	invalidDir := filepath.Join(testDir, "invalid")
+	invalidDir := filepath.Join(dir, "invalid")
 	err = os.MkdirAll(invalidDir, 0755)
 	testutils.AssertNoError(t, err)
 
@@ -93,7 +92,7 @@ func TestPackageManagement(t *testing.T) {
 
 	// Test invalid package list
 	invalidPath := filepath.Join(testDir, "invalid.nix")
-	err = os.WriteFile(invalidPath, []byte("invalid nix content"), 0644)
+	err = os.WriteFile(invalidPath, []byte("invalid nix content"), 0600)
 	testutils.AssertNoError(t, err)
 
 	_, err = utils.ParsePackageList(invalidPath)
@@ -137,7 +136,7 @@ func TestShellEnvironment(t *testing.T) {
 }
 
 func TestNixCache(t *testing.T) {
-	testDir, cleanup := testutils.SetupTestEnv(t)
+	_, cleanup := testutils.SetupTestEnv(t)
 	defer cleanup()
 
 	// Test cache directory management
@@ -160,7 +159,7 @@ func TestNixCache(t *testing.T) {
 }
 
 func TestNixProfile(t *testing.T) {
-	testDir, cleanup := testutils.SetupTestEnv(t)
+	_, cleanup := testutils.SetupTestEnv(t)
 	defer cleanup()
 
 	// Test profile management

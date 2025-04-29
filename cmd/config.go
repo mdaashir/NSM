@@ -259,11 +259,13 @@ var configResetCmd = &cobra.Command{
 }
 
 func init() {
+	RootCmd.AddCommand(configCmd)
+
+	// Add subcommands
 	configCmd.AddCommand(configShowCmd)
 	configCmd.AddCommand(configSetCmd)
 	configCmd.AddCommand(configValidateCmd)
 	configCmd.AddCommand(configAddCmd)
 	configCmd.AddCommand(configRemoveCmd)
 	configCmd.AddCommand(configResetCmd)
-	rootCmd.AddCommand(configCmd)
 }

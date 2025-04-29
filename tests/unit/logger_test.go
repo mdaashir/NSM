@@ -7,10 +7,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/mdaashir/NSM/utils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"../../utils"
 )
 
 func TestLogger(t *testing.T) {

@@ -213,13 +213,13 @@ func MigrateConfig() error {
 		needsSave = true
 	}
 
-		// Ensure default.packages exists as empty slice if not set
+	// Ensure default.packages exists as empty slice if not set
 	if !viper.IsSet("default.packages") {
 		viper.Set("default.packages", []string{})
 		needsSave = true
 	}
 
-		// Ensure shell.format is set
+	// Ensure shell.format is set
 	if !viper.IsSet("shell.format") {
 		viper.Set("shell.format", "shell.nix")
 		needsSave = true

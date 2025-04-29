@@ -115,6 +115,5 @@ Examples:
 }
 
 func init() {
-	rootCmd.AddCommand(freezeCmd)
-	freezeCmd.Flags().Bool("json", false, "Output in JSON format")
+	RootCmd.AddCommand(freezeCmd)
 }

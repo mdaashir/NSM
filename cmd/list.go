@@ -56,18 +56,16 @@ Examples:
 			}
 		}
 
-		// Read a configuration file
-		content, err := utils.ReadFile(configType)
-		if err != nil {
-			utils.Error("Failed to read %s: %v", configType, err)
-			return
-		}
-
 		var packages []string
 		if configType == "shell.nix" {
-			packages = utils.ExtractShellNixPackages(content)
+			packages, err = utils.ExtractShellNixPackages(configType)
 		} else {
-			packages = utils.ExtractFlakePackages(content)
+			packages, err = utils.ExtractFlakePackages(configType)
+		}
+
+		if err != nil {
+			utils.Error("Failed to extract packages from %s: %v", configType, err)
+			return
 		}
 
 		if len(packages) == 0 {
@@ -78,9 +76,8 @@ Examples:
 		// Sort packages alphabetically
 		sort.Strings(packages)
 
-		// Prepare table data
-		headers := []string{"Package", "Status", "Source"}
-		var rows [][]string
+		// Create table
+		table := utils.NewTable([]string{"Package", "Status", "Source"})
 
 		for _, pkg := range packages {
 			status := "pending"
@@ -88,28 +85,18 @@ Examples:
 				status = "installed"
 			}
 
-			rows = append(rows, []string{
-				pkg,
-				status,
-				configType,
-			})
+			table.AddRow([]string{pkg, status, configType})
 		}
 
 		// Output as a table
 		utils.Info("\n📦 Packages in your Nix environment:")
-		utils.Table(headers, rows)
+		utils.Info("\n%s", table.String())
 
 		utils.Info("\nTotal packages: %d", len(packages))
 		utils.Info("Configuration: %s", configType)
 
 		// Show tips based on package status
-		pendingCount := 0
-		for _, row := range rows {
-			if row[1] == "pending" {
-				pendingCount++
-			}
-		}
-
+		pendingCount := len(packages) - len(installedPkgs)
 		if pendingCount > 0 {
 			utils.Tip("Run 'nsm run' to enter shell with all packages")
 		}
@@ -117,5 +104,5 @@ Examples:
 }
 
 func init() {
-	rootCmd.AddCommand(listCmd)
+	RootCmd.AddCommand(listCmd)
 }

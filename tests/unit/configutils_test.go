@@ -9,7 +9,7 @@ import (
 )
 
 func TestConfigValidation(t *testing.T) {
-	testDir, cleanup := testutils.SetupTestEnv(t)
+	_, cleanup := testutils.SetupTestEnv(t)
 	defer cleanup()
 
 	tests := []struct {
@@ -93,7 +93,7 @@ func TestConfigValidation(t *testing.T) {
 }
 
 func TestConfigMigration(t *testing.T) {
-	testDir, cleanup := testutils.SetupTestEnv(t)
+	_, cleanup := testutils.SetupTestEnv(t)
 	defer cleanup()
 
 	tests := []struct {
@@ -152,7 +152,7 @@ func TestConfigMigration(t *testing.T) {
 }
 
 func TestConfigIO(t *testing.T) {
-	testDir, cleanup := testutils.SetupTestEnv(t)
+	_, cleanup := testutils.SetupTestEnv(t)
 	defer cleanup()
 
 	// Test loading config
@@ -180,7 +180,7 @@ func TestConfigIO(t *testing.T) {
 }
 
 func TestConfigSummary(t *testing.T) {
-	testDir, cleanup := testutils.SetupTestEnv(t)
+	_, cleanup := testutils.SetupTestEnv(t)
 	defer cleanup()
 
 	summary := utils.GetConfigSummary()

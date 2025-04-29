@@ -98,5 +98,5 @@ Example:
 }
 
 func init() {
-	rootCmd.AddCommand(infoCmd)
+	RootCmd.AddCommand(infoCmd)
 }

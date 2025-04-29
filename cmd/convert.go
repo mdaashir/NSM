@@ -134,6 +134,5 @@ Examples:
 }
 
 func init() {
-	convertCmd.Flags().Bool("no-backup", false, "Don't create a backup of shell.nix")
-	rootCmd.AddCommand(convertCmd)
+	RootCmd.AddCommand(convertCmd)
 }

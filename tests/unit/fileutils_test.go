@@ -5,10 +5,9 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/mdaashir/NSM/utils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"../../utils"
 )
 
 func TestSafeWrite(t *testing.T) {
@@ -17,7 +16,7 @@ func TestSafeWrite(t *testing.T) {
 
 	// Test normal write
 	data := []byte("test data")
-	err := utils.SafeWrite(testFile, data, 0644)
+	err := utils.SafeWrite(testFile, data, 0600)
 	require.NoError(t, err)
 
 	// Verify content
@@ -28,11 +27,13 @@ func TestSafeWrite(t *testing.T) {
 	// Test concurrent writes
 	done := make(chan bool)
 	for i := 0; i < 10; i++ {
-		go func(i int) {
-			err := utils.SafeWrite(testFile, []byte("test"), 0644)
-			assert.NoError(t, err)
+		go func() {
+			err := utils.SafeWrite(testFile, []byte("test"), 0600)
+			if err != nil {
+				t.Errorf("SafeWrite failed: %v", err)
+			}
 			done <- true
-		}(i)
+		}()
 	}
 
 	// Wait for all writes
@@ -51,7 +52,9 @@ func TestFileLock(t *testing.T) {
 			lock := utils.AcquireLock(tmpFile)
 			defer lock.Release()
 			// Simulate work
-			utils.SafeWrite(tmpFile, []byte("test"), 0644)
+			if err := utils.SafeWrite(tmpFile, []byte("test"), 0600); err != nil {
+				t.Errorf("SafeWrite failed: %v", err)
+			}
 			done <- true
 		}()
 	}

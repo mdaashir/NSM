@@ -159,5 +159,5 @@ Examples:
 }
 
 func init() {
-	rootCmd.AddCommand(removeCmd)
+	RootCmd.AddCommand(removeCmd)
 }

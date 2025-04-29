@@ -166,15 +166,13 @@ func GetSystemStatus() (map[string]interface{}, error) {
 	status["checks"] = RunSystemChecks()
 
 	// Get resource usage
-	if usage, err := getResourceUsage(); err == nil {
-		status["resources"] = usage
-	}
+	status["resources"] = getResourceUsage()
 
 	return status, nil
 }
 
 // getResourceUsage gets system resource usage information
-func getResourceUsage() (map[string]interface{}, error) {
+func getResourceUsage() map[string]interface{} {
 	usage := make(map[string]interface{})
 
 	// Get Nix store size
@@ -187,7 +185,7 @@ func getResourceUsage() (map[string]interface{}, error) {
 		usage["free_space"] = space
 	}
 
-	return usage, nil
+	return usage
 }
 
 // getDirSize gets the size of a directory in bytes
@@ -203,13 +201,4 @@ func getDirSize(path string) (int64, error) {
 		return nil
 	})
 	return size, err
-}
-
-// getDiskSpace gets free disk space in bytes
-func getDiskSpace(path string) (uint64, error) {
-	var stat unix.Statfs_t
-	if err := unix.Statfs(path, &stat); err != nil {
-		return 0, err
-	}
-	return stat.Bavail * uint64(stat.Bsize), nil
 }

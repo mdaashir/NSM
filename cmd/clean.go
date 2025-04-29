@@ -53,5 +53,5 @@ you don't need old generations before cleaning.`,
 }
 
 func init() {
-	rootCmd.AddCommand(cleanCmd)
+	RootCmd.AddCommand(cleanCmd)
 }

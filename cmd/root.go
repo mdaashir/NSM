@@ -4,6 +4,7 @@ Copyright © 2025 Mohamed Aashir S <s.mohamedaashir@gmail.com>
 package cmd
 
 import (
+	"io"
 	"os"
 	"path/filepath"
 
@@ -12,7 +13,8 @@ import (
 	"github.com/spf13/viper"
 )
 
-var rootCmd = &cobra.Command{
+// RootCmd represents the base command when called without any subcommands
+var RootCmd = &cobra.Command{
 	Use:   "NSM",
 	Short: "NSM (Nix Shell Manager) - A tool to manage Nix development environments",
 	Long: `NSM (Nix Shell Manager) is a powerful CLI tool that helps you manage Nix development environments.
@@ -42,25 +44,46 @@ var (
 
 // Execute adds all child commands to the root command and sets flags appropriately.
 func Execute() {
-	// Initialize logger before executing
-	utils.ConfigureLogger(debugMode, quietMode)
-
-	if err := rootCmd.Execute(); err != nil {
+	if err := RootCmd.Execute(); err != nil {
 		utils.Error("Error executing command: %v", err)
 		os.Exit(1)
 	}
 }
 
 func init() {
-	cobra.OnInitialize(setupConfig)
+	cobra.OnInitialize(func() {
+		// Configure logger based on flags
+		var logLevel utils.LogLevel
+		var output io.Writer = os.Stdout
+
+		if debugMode {
+			logLevel = utils.DEBUG
+		} else if quietMode {
+			logLevel = utils.ERROR
+			output = io.Discard
+		} else {
+			logLevel = utils.INFO
+		}
+
+		utils.ConfigureLogger(logLevel, output)
+
+		// Setup configuration
+		setupConfig()
+
+		// Ensure config directory exists
+		if _, err := utils.EnsureConfigDir(); err != nil {
+			utils.Error("Failed to create config directory: %v", err)
+			os.Exit(1)
+		}
+	})
 
 	// Global flags
-	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.config/NSM/config.yaml)")
-	rootCmd.PersistentFlags().BoolVar(&debugMode, "debug", false, "enable debug output")
-	rootCmd.PersistentFlags().BoolVar(&quietMode, "quiet", false, "suppress non-error output")
+	RootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.config/NSM/config.yaml)")
+	RootCmd.PersistentFlags().BoolVar(&debugMode, "debug", false, "enable debug output")
+	RootCmd.PersistentFlags().BoolVar(&quietMode, "quiet", false, "suppress non-error output")
 
 	// Remove default completion command
-	rootCmd.CompletionOptions.DisableDefaultCmd = true
+	RootCmd.CompletionOptions.DisableDefaultCmd = true
 }
 
 // setupConfig reads in config file and ENV variables if set

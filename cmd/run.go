@@ -126,6 +126,5 @@ Examples:
 }
 
 func init() {
-	runCmd.Flags().Bool("pure", false, "Run in pure mode (no inherited environment)")
-	rootCmd.AddCommand(runCmd)
+	RootCmd.AddCommand(runCmd)
 }

@@ -1,5 +1,4 @@
-// Package utils provides utility functions for file operations, logging, configuration,
-// and Nix-related functionality for the NSM (Nix Shell Manager) application.
+// Package utils provides utility functions for file operations
 package utils
 
 import (
@@ -14,6 +13,33 @@ import (
 var (
 	fileLocks sync.Map
 )
+
+// FileExists checks if a file exists
+func FileExists(path string) bool {
+	_, err := os.Stat(path)
+	return !os.IsNotExist(err)
+}
+
+// BackupFile creates a backup of a file
+func BackupFile(path string) error {
+	if !FileExists(path) {
+		return fmt.Errorf("file %s does not exist", path)
+	}
+
+	backupPath := path + ".backup"
+	return CopyFile(path, backupPath)
+}
+
+// GetProjectConfigType returns the type of project configuration (shell.nix or flake.nix)
+func GetProjectConfigType() string {
+	if FileExists("shell.nix") {
+		return "shell.nix"
+	}
+	if FileExists("flake.nix") {
+		return "flake.nix"
+	}
+	return ""
+}
 
 // SafeWrite writes data to a file atomically using a temporary file
 func SafeWrite(path string, data []byte, perm os.FileMode) error {
@@ -221,4 +247,33 @@ func IsEmptyDir(path string) (bool, error) {
 	}
 
 	return false, err
+}
+
+// ReadFile reads a file with proper error handling
+func ReadFile(path string) (string, error) {
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return "", fmt.Errorf("failed to read file %s: %v", path, err)
+	}
+	return string(content), nil
+}
+
+// WriteFile writes data to a file with proper error handling
+func WriteFile(path string, content string) error {
+	return os.WriteFile(path, []byte(content), 0600)
+}
+
+// EnsureConfigDir ensures the configuration directory exists
+func EnsureConfigDir() (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("failed to get home directory: %v", err)
+	}
+
+	configDir := filepath.Join(home, ".config", "nsm")
+	if err := os.MkdirAll(configDir, 0700); err != nil {
+		return "", fmt.Errorf("failed to create config directory: %v", err)
+	}
+
+	return configDir, nil
 }

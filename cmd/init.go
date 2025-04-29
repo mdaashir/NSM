@@ -107,9 +107,7 @@ Examples:
 }
 
 func init() {
-	initCmd.Flags().Bool("flake", false, "Create a flake.nix instead of shell.nix")
-	initCmd.Flags().Bool("force", false, "Overwrite existing configuration files")
-	rootCmd.AddCommand(initCmd)
+	RootCmd.AddCommand(initCmd)
 }
 
 // getDefaultShellContent generates shell.nix content with configured defaults

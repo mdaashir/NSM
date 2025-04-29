@@ -2,12 +2,31 @@
 package testutils
 
 import (
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	"runtime"
 	"testing"
+
+	"github.com/spf13/viper"
 )
+
+// BenchTempDir creates a temporary directory for benchmarks
+func BenchTempDir(b *testing.B) (string, func()) {
+	b.Helper()
+
+	dir, err := os.MkdirTemp("", "nsm-bench-*")
+	if err != nil {
+		b.Fatalf("Failed to create temp dir: %v", err)
+	}
+
+	return dir, func() {
+		if err := os.RemoveAll(dir); err != nil {
+			b.Errorf("Failed to cleanup temp dir: %v", err)
+		}
+	}
+}
 
 // TempDir creates a temporary directory and returns its path along with a cleanup function
 func TempDir(t *testing.T) (string, func()) {
@@ -162,22 +181,102 @@ func AssertDirExists(t *testing.T, path string) {
 	}
 }
 
-// WithWorkDir changes the working directory for test execution
-func WithWorkDir(t *testing.T, dir string, fn func()) {
+// SetupTestEnv sets up a test environment and returns cleanup function
+func SetupTestEnv(t *testing.T) (string, func()) {
 	t.Helper()
+	dir, cleanup := TempDir(t)
+	return dir, cleanup
+}
+
+// AssertNoError fails the test if err is not nil
+func AssertNoError(t *testing.T, err error) {
+	t.Helper()
+	if err != nil {
+		t.Fatalf("Expected no error, got: %v", err)
+	}
+}
+
+// AssertError fails the test if err is nil
+func AssertError(t *testing.T, err error) {
+	t.Helper()
+	if err == nil {
+		t.Fatal("Expected error, got nil")
+	}
+}
+
+// AssertConfigValue checks if a config value matches expected value
+func AssertConfigValue(t *testing.T, key string, expected interface{}) {
+	t.Helper()
+	actual := viper.Get(key)
+	if actual != expected {
+		t.Errorf("Config value mismatch for %s.\nExpected: %v\nGot: %v", key, expected, actual)
+	}
+}
+
+// CreateTestShellNix creates a shell.nix file with given packages
+func CreateTestShellNix(t *testing.T, dir string, packages []string) {
+	t.Helper()
+	content := fmt.Sprintf(`{ pkgs ? import <nixpkgs> {} }:
+
+pkgs.mkShell {
+  packages = with pkgs; [
+    %s
+  ];
+}`, formatPackageList(packages))
+
+	err := os.WriteFile(filepath.Join(dir, "shell.nix"), []byte(content), 0600)
+	if err != nil {
+		t.Fatalf("Failed to create shell.nix: %v", err)
+	}
+}
+
+// CreateTestFlakeNix creates a flake.nix file with given packages
+func CreateTestFlakeNix(t *testing.T, dir string, packages []string) {
+	t.Helper()
+	content := fmt.Sprintf(`{
+  description = "Development environment";
+
+  inputs.nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
+
+  outputs = { self, nixpkgs }: {
+    devShell.x86_64-linux = nixpkgs.mkShell {
+      buildInputs = with nixpkgs; [
+        %s
+      ];
+    };
+  };
+}`, formatPackageList(packages))
+
+	err := os.WriteFile(filepath.Join(dir, "flake.nix"), []byte(content), 0600)
+	if err != nil {
+		t.Fatalf("Failed to create flake.nix: %v", err)
+	}
+}
+
+// Helper function to format package list
+func formatPackageList(packages []string) string {
+	if len(packages) == 0 {
+		return ""
+	}
+	return fmt.Sprintf("    %s", string([]byte(fmt.Sprintf("%#v", packages)[1:len(fmt.Sprintf("%#v", packages))-1])))
+}
+
+// WithWorkDir changes the working directory for test execution (works with *testing.B)
+func WithWorkDir(tb testing.TB, dir string, fn func()) {
+	tb.Helper()
 
 	oldWd, err := os.Getwd()
 	if err != nil {
-		t.Fatalf("Failed to get current working directory: %v", err)
+		tb.Fatalf("Failed to get current working directory: %v", err)
 	}
 
 	if err := os.Chdir(dir); err != nil {
-		t.Fatalf("Failed to change working directory: %v", err)
+		tb.Fatalf("Failed to change working directory: %v", err)
 	}
 
 	defer func() {
 		if err := os.Chdir(oldWd); err != nil {
-			t.Errorf("Failed to restore working directory: %v", err)
+			tb.Errorf("Failed to restore working directory: %v", err)
 		}
 	}()
 
