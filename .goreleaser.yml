@@ -25,7 +25,11 @@ builds:
     main: .
     binary: nsm
     ldflags:
-      - -s -w
+      - -s -w -X github.com/mdaashir/NSM/cmd.Version={{.Version}} -X github.com/mdaashir/NSM/cmd.Commit={{.Commit}} -X github.com/mdaashir/NSM/cmd.BuildDate={{.Date}} -X github.com/mdaashir/NSM/cmd.BuildBy=goreleaser
+
+# Build cache optimization
+cache:
+  store: true
 
 # Native package formats for Linux
 nfpms:
@@ -47,6 +51,28 @@ nfpms:
       - nix
     recommends:
       - git
+    contents:
+      - src: LICENSE
+        dst: /usr/share/doc/nsm/LICENSE
+      - src: README.md
+        dst: /usr/share/doc/nsm/README.md
+      - src: CHANGELOG.md
+        dst: /usr/share/doc/nsm/CHANGELOG.md
+      - src: completions/nsm.bash
+        dst: /usr/share/bash-completion/completions/nsm
+        file_info:
+          mode: 0644
+      - src: completions/nsm.zsh
+        dst: /usr/share/zsh/vendor-completions/_nsm
+        file_info:
+          mode: 0644
+      - src: completions/nsm.fish
+        dst: /usr/share/fish/vendor_completions.d/nsm.fish
+        file_info:
+          mode: 0644
+    scripts:
+      postinstall: scripts/postinstall.sh
+      preremove: scripts/preremove.sh
 
 # macOS specific settings
 brews:
@@ -63,6 +89,9 @@ brews:
     folder: Formula
     install: |
       bin.install "nsm"
+      bash_completion.install "completions/nsm.bash" => "nsm"
+      zsh_completion.install "completions/nsm.zsh" => "_nsm"
+      fish_completion.install "completions/nsm.fish"
     test: |
       system "#{bin}/nsm --version"
     service: |
@@ -83,18 +112,80 @@ dockers:
       - 'ghcr.io/mdaashir/nsm:{{ .Version }}'
       - 'ghcr.io/mdaashir/nsm:latest'
     dockerfile: Dockerfile
-    use: docker
+    use: buildx
     build_flag_templates:
       - '--platform=linux/amd64,linux/arm64,linux/arm/v7'
+      - '--label=org.opencontainers.image.title={{ .ProjectName }}'
+      - '--label=org.opencontainers.image.description=Nix Shell Manager'
+      - '--label=org.opencontainers.image.url=https://github.com/mdaashir/NSM'
+      - '--label=org.opencontainers.image.source=https://github.com/mdaashir/NSM'
+      - '--label=org.opencontainers.image.version={{ .Version }}'
+      - '--label=org.opencontainers.image.created={{ .Date }}'
+      - '--label=org.opencontainers.image.revision={{ .FullCommit }}'
+      - '--label=org.opencontainers.image.licenses=MIT'
     extra_files:
       - go.mod
       - go.sum
       - cmd/
       - utils/
+    skip_push: auto
+
+# Shell completions
+snapcrafts:
+  - name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    summary: Nix Shell Manager
+    description: |
+      NSM (Nix Shell Manager) is a command-line tool to manage
+      Nix development environments with ease.
+    grade: stable
+    confinement: classic
+    publish: true
+
+# Generate shell completions
+archives:
+  - format: tar.gz
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    replacements:
+      darwin: macOS
+    format_overrides:
+      - goos: windows
+        format: zip
+    files:
+      - README.md
+      - LICENSE
+      - CHANGELOG.md
+      - completions/*
+
+# Shell completion generation
+# This will create bash, zsh, and fish completions
+# They will be included in the release archives
+builds:
+  - id: nsm
+    # ...existing build configuration...
+    hooks:
+      post:
+        - cmd: ./scripts/generate-completions.sh {{ .Path }}
+          dir: .
 
 # Release settings
 changelog:
   sort: asc
+  use: github
+  groups:
+    - title: 'New Features'
+      regexp: "^.*feat[(\\w)]*:+.*$"
+      order: 0
+    - title: 'Bug Fixes'
+      regexp: "^.*fix[(\\w)]*:+.*$"
+      order: 1
+    - title: 'Security Updates'
+      regexp: "^.*security[(\\w)]*:+.*$"
+      order: 2
+    - title: 'Documentation Updates'
+      regexp: "^.*docs[(\\w)]*:+.*$"
+      order: 3
+    - title: 'Other Changes'
+      order: 999
   filters:
     exclude:
       - '^docs:'
@@ -145,11 +236,22 @@ release:
 before:
   hooks:
     - go mod tidy
+    - go mod vendor
+    - go generate ./...
+    - mkdir -p completions
+
+# After build hooks
+after:
+  hooks:
+    - cmd: ./scripts/update-docs.sh {{.Version}}
+      dir: .
 
 # Checksum settings
 checksum:
   name_template: 'checksums.txt'
+  algorithm: sha256
 
+# Signing configuration
 signs:
   - cmd: cosign
     args:
@@ -158,3 +260,13 @@ signs:
       - --output=${signature}
       - ${artifact}
     artifacts: checksum
+    signature: "${artifact}.sig"
+    certificate: "${artifact}.pem"
+    id: cosign
+
+# SBOM generation
+sboms:
+  - artifacts: archive
+    documents:
+      - >-
+        {{.ProjectName}}_{{.Version}}_sbom.spdx.json

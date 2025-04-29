@@ -5,6 +5,7 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  workflow_dispatch:
 
 jobs:
   test:
@@ -13,9 +14,12 @@ jobs:
     strategy:
       matrix:
         go-version: ['1.24.x']
+        os: [ubuntu-latest, macos-latest, windows-latest]
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -26,20 +30,55 @@ jobs:
 
       - name: Install Nix
         uses: DeterminateSystems/nix-installer-action@main
+        if: matrix.os != 'windows-latest'
+
+      - name: Set up WSL
+        if: matrix.os == 'windows-latest'
+        uses: Vampire/setup-wsl@v2
+        with:
+          distribution: Ubuntu-22.04
+
+      - name: Install Nix on WSL
+        if: matrix.os == 'windows-latest'
+        shell: wsl-bash {0}
+        run: |
+          sh <(curl -L https://nixos.org/nix/install) --daemon --yes
 
       - name: Run Unit Tests
-        run: go test -v ./tests/unit/...
+        run: go test -v -race -coverprofile=unit.out ./tests/unit/...
 
       - name: Run Integration Tests
-        run: go test -v ./tests/integration/...
+        run: go test -v -coverprofile=integration.out ./tests/integration/...
+        if: success() || failure()
 
       - name: Run Benchmarks
-        run: go test -v -bench=. ./tests/benchmark/...
+        run: go test -v -bench=. -benchmem ./tests/benchmark/...
+        if: success() || failure()
 
-      - name: Check Test Coverage
+      - name: Merge Coverage Profiles
         run: |
-          go test -coverprofile=coverage.out ./...
-          go tool cover -func=coverage.out
+          go get github.com/wadey/gocovmerge
+          go install github.com/wadey/gocovmerge
+          gocovmerge unit.out integration.out > coverage.txt
+        if: matrix.os == 'ubuntu-latest'
+
+      - name: Upload Coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          file: ./coverage.txt
+          flags: unittests
+          name: codecov-umbrella
+        if: matrix.os == 'ubuntu-latest'
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+
+      - name: Generate Test Report
+        uses: dorny/test-reporter@v1
+        if: success() || failure()
+        with:
+          name: Go Tests
+          path: '**/*.out'
+          reporter: go-test
 
   lint:
     name: Lint
@@ -66,4 +105,30 @@ jobs:
         uses: golangci/golangci-lint-action@v4
         with:
           version: latest
-          args: --timeout=5m
+          args: --timeout=5m --verbose
+
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24.x'
+
+      - name: Run gosec Security Scanner
+        uses: securego/gosec@master
+        with:
+          args: -exclude-dir=vendor -severity=medium ./...
+
+      - name: Run govulncheck
+        uses: golang/govulncheck-action@v1
+        with:
+          go-version-input: '1.24.x'
+          check-latest: true
+
+      - name: Run Nancy (Dependency Vulnerability Scanner)
+        run: |
+          go list -json -deps ./... | nancy sleuth

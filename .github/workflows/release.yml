@@ -4,13 +4,22 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (vX.Y.Z format)'
+        required: true
+        default: ''
 
 permissions:
   contents: write
   packages: write
+  issues: write
+  pull-requests: write
 
 jobs:
-  goreleaser:
+  validate:
+    name: Validate Release
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -30,6 +39,49 @@ jobs:
       - name: Run Tests
         run: go test -v ./tests/unit/... ./tests/integration/...
 
+      - name: Validate Version
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            VERSION="${{ github.event.inputs.version }}"
+          else
+            VERSION=${GITHUB_REF#refs/tags/}
+          fi
+
+          if ! [[ $VERSION =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Invalid version format: $VERSION. Must be in the format vX.Y.Z"
+            exit 1
+          fi
+
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          echo "Validated version: $VERSION"
+
+  goreleaser:
+    name: Release with GoReleaser
+    needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24.x'
+          cache: true
+          cache-dependency-path: go.sum
+
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@main
+
+      - name: Create Tag
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git tag -a ${{ github.event.inputs.version }} -m "Release ${{ github.event.inputs.version }}"
+          git push origin ${{ github.event.inputs.version }}
+
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
         with:
@@ -46,3 +98,53 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAP_GITHUB_TOKEN: ${{ secrets.GH_PAT }}
+
+  update-changelog:
+    name: Update Changelog
+    needs: goreleaser
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Generate Changelog
+        id: changelog
+        uses: metcalfc/changelog-generator@v4.1.0
+        with:
+          myToken: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update CHANGELOG.md
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/}
+          DATE=$(date +%Y-%m-%d)
+
+          # Create a temporary file with the new changelog entry
+          echo -e "# $VERSION - $DATE\n\n${{ steps.changelog.outputs.changelog }}\n\n$(cat CHANGELOG.md)" > CHANGELOG.new
+          mv CHANGELOG.new CHANGELOG.md
+
+          # Commit and push the updated changelog
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add CHANGELOG.md
+          git commit -m "Update CHANGELOG.md for $VERSION"
+          git push
+
+  notify:
+    name: Notify Release
+    needs: update-changelog
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create Release Discussion
+        uses: peter-evans/create-or-update-comment@v3
+        with:
+          issue-number: 1
+          body: |
+            :rocket: New release: ${{ github.ref_name }} has been published!
+
+            :package: Get it:
+            - `nix run github:mdaashir/NSM`
+            - `brew install mdaashir/tap/nsm`
+            - Binary downloads: https://github.com/mdaashir/NSM/releases/tag/${{ github.ref_name }}
+
+            See the [CHANGELOG](https://github.com/mdaashir/NSM/blob/main/CHANGELOG.md) for details.
