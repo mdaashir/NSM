@@ -67,6 +67,12 @@ Examples:
 			utils.Debug("Running in pure mode")
 		}
 
+		// Ask for confirmation before proceeding
+		if !utils.ConfirmAction("Continue to iterate?") {
+			utils.Info("Operation cancelled")
+			return
+		}
+
 		var c *exec.Cmd
 		if configType == "shell.nix" {
 			utils.Info("🚀 Launching nix-shell...")

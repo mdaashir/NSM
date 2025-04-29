@@ -32,9 +32,22 @@ to ensure the specified package version is used in future installations.`,
 
 		utils.Success("Successfully pinned %s to version %s", packageName, version)
 		utils.Tip("Run 'nsm list' to see all pinned packages")
+
+		// Interactive workflow
+		if pinInteractive {
+			// Ask if user wants to run the shell
+			if utils.PromptContinue("enter the shell") {
+				// Execute run command
+				runCmd.Run(runCmd, []string{})
+			}
+		}
 	},
 }
 
+// Interactive flag for pin command
+var pinInteractive bool
+
 func init() {
 	RootCmd.AddCommand(pinCmd)
+	pinCmd.Flags().BoolVar(&pinInteractive, "interactive", false, "Enable interactive workflow")
 }

@@ -10,6 +10,9 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// Interactive flag for upgrade command
+var upgradeInteractive bool
+
 var upgradeCmd = &cobra.Command{
 	Use:   "upgrade",
 	Short: "Update nixpkgs channel",
@@ -67,10 +70,21 @@ environment by running 'nsm run' again.`,
 			utils.Info("Channel changed from:\n%s\nto:\n%s", oldChannel, newChannel)
 		}
 
-		utils.Tip("Run 'nsm run' to enter shell with updated packages")
+		// Interactive workflow
+		if upgradeInteractive {
+			utils.Tip("Run 'nsm run' to enter shell with updated packages")
+			if utils.PromptContinue("enter the shell") {
+				runCmd.Run(cmd, args)
+			}
+		} else {
+			utils.Tip("Run 'nsm run' to enter shell with updated packages")
+		}
 	},
 }
 
 func init() {
 	RootCmd.AddCommand(upgradeCmd)
+
+	// Add interactive flag
+	upgradeCmd.Flags().BoolVarP(&upgradeInteractive, "interactive", "i", false, "Run in interactive mode")
 }

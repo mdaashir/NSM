@@ -154,10 +154,24 @@ Examples:
 
 		utils.Success("Removed %d package(s) from %s", removed, configType)
 		utils.Success("Backup created: %s.backup", configType)
-		utils.Tip("Run 'nsm run' to enter the updated shell")
+
+		// Interactive workflow
+		if removeInteractive {
+			// Ask if user wants to run the shell
+			if utils.PromptContinue("enter the shell") {
+				// Execute run command
+				runCmd.Run(runCmd, []string{})
+			}
+		} else {
+			utils.Tip("Run 'nsm run' to enter the updated shell")
+		}
 	},
 }
 
+// Interactive flag for remove command
+var removeInteractive bool
+
 func init() {
 	RootCmd.AddCommand(removeCmd)
+	removeCmd.Flags().BoolVar(&removeInteractive, "interactive", false, "Enable interactive workflow")
 }

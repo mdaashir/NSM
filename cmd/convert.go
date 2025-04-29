@@ -8,6 +8,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/mdaashir/NSM/utils"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -130,9 +131,23 @@ Examples:
 		fmt.Println("✅ Successfully converted to flake.nix")
 		fmt.Printf("📦 Migrated %d packages\n", len(packages))
 		fmt.Println("💡 Run 'nsm run' to enter the new flake-based shell")
+
+		// Interactive workflow
+		if convertInteractive {
+			// Ask if user wants to run the shell
+			if utils.PromptContinue("enter the shell") {
+				// Execute run command
+				runCmd.Run(runCmd, []string{})
+			}
+		}
 	},
 }
 
+// Interactive flag for convert command
+var convertInteractive bool
+
 func init() {
 	RootCmd.AddCommand(convertCmd)
+	convertCmd.Flags().BoolVar(&noBackup, "no-backup", false, "Don't create a backup of shell.nix")
+	convertCmd.Flags().BoolVar(&convertInteractive, "interactive", false, "Enable interactive workflow")
 }

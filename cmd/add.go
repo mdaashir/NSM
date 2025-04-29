@@ -11,6 +11,9 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// Interactive flag for add command
+var addInteractive bool
+
 var addCmd = &cobra.Command{
 	Use:   "add [packages...]",
 	Short: "Add one or more packages to the nix environment",
@@ -112,10 +115,21 @@ Examples:
 		}
 
 		utils.Success("Added package(s): %s", strings.Join(args, ", "))
-		utils.Tip("Run 'nsm run' to enter the shell with new packages")
+
+		// Interactive workflow
+		if addInteractive {
+			// Ask if user wants to run the shell
+			if utils.PromptContinue("enter the shell") {
+				// Execute run command
+				runCmd.Run(runCmd, []string{})
+			}
+		} else {
+			utils.Tip("Run 'nsm run' to enter the shell with new packages")
+		}
 	},
 }
 
 func init() {
 	RootCmd.AddCommand(addCmd)
+	addCmd.Flags().BoolVar(&addInteractive, "interactive", false, "Enable interactive workflow")
 }

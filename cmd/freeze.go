@@ -111,9 +111,23 @@ Examples:
 		utils.Info("\nChannel: %s", channel)
 		utils.Info("Nixpkgs revision: %s", revision)
 		utils.Tip("Use 'nsm pin' to restore these exact versions later")
+
+		// Interactive workflow
+		if freezeInteractive {
+			// Ask if user wants to run the shell
+			if utils.PromptContinue("enter the shell") {
+				// Execute run command
+				runCmd.Run(runCmd, []string{})
+			}
+		}
 	},
 }
 
+// Interactive flag for freeze command
+var freezeInteractive bool
+
 func init() {
 	RootCmd.AddCommand(freezeCmd)
+	freezeCmd.Flags().BoolVar(&freezeInteractive, "interactive", false, "Enable interactive workflow")
+	freezeCmd.Flags().Bool("json", false, "Output in JSON format")
 }

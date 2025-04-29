@@ -33,7 +33,16 @@ you don't need old generations before cleaning.`,
 			return
 		}
 
-		utils.Info("🧹 Running garbage collection...")
+		utils.Info("🧹 Preparing to run garbage collection...")
+		utils.Warning("This will remove old generations and free up disk space.")
+
+		// Prompt user to continue
+		if !utils.PromptContinue("run garbage collection") {
+			utils.Info("Cleanup cancelled.")
+			return
+		}
+
+		utils.Info("Running garbage collection...")
 
 		// Run nix-collect-garbage
 		c := exec.Command("nix-collect-garbage", "-d")

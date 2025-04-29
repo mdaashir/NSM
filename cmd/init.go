@@ -50,6 +50,12 @@ Examples:
 			return
 		}
 
+		interactive, err := cmd.Flags().GetBool("interactive")
+		if err != nil {
+			utils.Debug("Failed to get interactive flag, defaulting to false: %v", err)
+			interactive = false
+		}
+
 		// Determine a file to create
 		var filename string
 		if useFlake {
@@ -98,16 +104,36 @@ Examples:
 		}
 
 		utils.Success("Created %s with default configuration", filename)
-		if useFlake {
-			utils.Tip("Run 'nsm run' to enter the flake-based shell")
+
+		// Interactive workflow
+		if interactive {
+			// Ask if user wants to add packages
+			if utils.PromptContinue("add packages") {
+				// Execute add command
+				addCmd.Run(addCmd, []string{})
+			}
+
+			// Ask if user wants to run the shell
+			if utils.PromptContinue("enter the shell") {
+				// Execute run command
+				runCmd.Run(runCmd, []string{})
+			}
 		} else {
-			utils.Tip("Run 'nsm run' to enter the shell")
+			if useFlake {
+				utils.Tip("Run 'nsm run' to enter the flake-based shell")
+			} else {
+				utils.Tip("Run 'nsm run' to enter the shell")
+			}
+			utils.Tip("Use --interactive flag for an interactive workflow")
 		}
 	},
 }
 
 func init() {
 	RootCmd.AddCommand(initCmd)
+	initCmd.Flags().Bool("flake", false, "Create a flake.nix instead of shell.nix")
+	initCmd.Flags().Bool("force", false, "Overwrite existing configuration files")
+	initCmd.Flags().Bool("interactive", false, "Enable interactive workflow")
 }
 
 // getDefaultShellContent generates shell.nix content with configured defaults
