@@ -1,28 +1,17 @@
 #!/bin/bash
-# This script generates shell completions for NSM
+# Script to generate shell completions for various shells
 
 set -e
 
-BINARY_PATH=$1
-if [ -z "$BINARY_PATH" ]; then
-    echo "Error: Binary path not provided"
-    echo "Usage: $0 <binary-path>"
-    exit 1
-fi
-
-# Create completions directory if it doesn't exist
+# Ensure output directory exists
 mkdir -p completions
 
-# Generate Bash completions
-echo "Generating Bash completions..."
-$BINARY_PATH completion bash >completions/nsm.bash
+echo "Generating shell completions..."
 
-# Generate Zsh completions
-echo "Generating Zsh completions..."
-$BINARY_PATH completion zsh >completions/nsm.zsh
+# Generate completions for various shells
+./nsm completion bash >completions/nsm.bash
+./nsm completion zsh >completions/nsm.zsh
+./nsm completion fish >completions/nsm.fish
+./nsm completion powershell >completions/nsm.ps1
 
-# Generate Fish completions
-echo "Generating Fish completions..."
-$BINARY_PATH completion fish >completions/nsm.fish
-
-echo "Shell completions generated successfully in the completions/ directory."
+echo "Shell completions generated in completions/ directory"

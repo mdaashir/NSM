@@ -1,0 +1,115 @@
+name: Performance Monitoring
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: '0 0 * * 0' # Weekly on Sunday
+  workflow_dispatch:
+
+jobs:
+  benchmark:
+    name: Run Benchmarks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24.x'
+
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@main
+
+      - name: Run Benchmarks
+        run: go test -bench=. -benchmem ./tests/benchmark/... | tee benchmark_results.txt
+
+      - name: Compare with Previous Benchmarks
+        uses: benchmark-action/github-action-benchmark@v1
+        with:
+          tool: 'go'
+          output-file-path: benchmark_results.txt
+          auto-push: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          alert-threshold: '150%'
+          comment-on-alert: true
+          fail-on-alert: true
+          alert-comment-cc-users: '@mdaashir'
+
+      - name: Upload Benchmark Results
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-results
+          path: benchmark_results.txt
+
+  profiling:
+    name: CPU/Memory Profiling
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24.x'
+
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@main
+
+      - name: Generate CPU Profile
+        run: |
+          mkdir -p profiles
+          go test -cpuprofile=profiles/cpu.prof -benchtime=10s -bench=. ./tests/benchmark/...
+
+      - name: Generate Memory Profile
+        run: |
+          go test -memprofile=profiles/mem.prof -benchtime=10s -bench=. ./tests/benchmark/...
+
+      - name: Analyze Profiles
+        run: |
+          go tool pprof -text profiles/cpu.prof > profiles/cpu_analysis.txt
+          go tool pprof -text profiles/mem.prof > profiles/mem_analysis.txt
+
+      - name: Upload Profile Analysis
+        uses: actions/upload-artifact@v4
+        with:
+          name: profile-analysis
+          path: profiles/
+
+  resource-usage:
+    name: Resource Usage Analysis
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24.x'
+
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@main
+
+      - name: Build NSM
+        run: go build -o nsm
+
+      - name: Analyze Binary Size
+        run: |
+          ls -la nsm
+          echo "NSM binary size: $(ls -la nsm | awk '{print $5}') bytes" >> resource_analysis.txt
+
+      - name: Run with Time Command
+        run: |
+          echo "Time to initialize NSM:" >> resource_analysis.txt
+          { time ./nsm --help; } 2>> resource_analysis.txt
+
+      - name: Upload Resource Analysis
+        uses: actions/upload-artifact@v4
+        with:
+          name: resource-analysis
+          path: resource_analysis.txt

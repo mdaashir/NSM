@@ -1,12 +1,30 @@
-#!/bin/sh
+#!/bin/bash
 # Pre-removal script for NSM
 
 set -e
 
-echo "Removing NSM..."
-# No need to remove config files, as they might contain user preferences
-# Config files are stored in ${HOME}/.config/NSM/
+echo "Cleaning up NSM before removal..."
 
-# Optional: Notify user about remaining config files
-echo "Note: Configuration files in ${HOME}/.config/NSM/ will be preserved."
-echo "To completely remove NSM, delete this directory manually."
+# Remove completions
+BASH_COMPLETION_DIR="/etc/bash_completion.d"
+ZSH_COMPLETION_DIR="/usr/share/zsh/site-functions"
+FISH_COMPLETION_DIR="/usr/share/fish/vendor_completions.d"
+
+if [ -f "$BASH_COMPLETION_DIR/nsm" ]; then
+    rm "$BASH_COMPLETION_DIR/nsm"
+    echo "Removed bash completion"
+fi
+
+if [ -f "$ZSH_COMPLETION_DIR/_nsm" ]; then
+    rm "$ZSH_COMPLETION_DIR/_nsm"
+    echo "Removed zsh completion"
+fi
+
+if [ -f "$FISH_COMPLETION_DIR/nsm.fish" ]; then
+    rm "$FISH_COMPLETION_DIR/nsm.fish"
+    echo "Removed fish completion"
+fi
+
+echo "NSM pre-removal cleanup completed successfully."
+echo "Note: Your Nix packages and ~/.config/NSM directory have been preserved."
+echo "To completely remove all NSM data, manually delete ~/.config/NSM."

@@ -2,42 +2,90 @@ name: Dependency Updates
 
 on:
   schedule:
-    - cron: '0 12 * * 1'  # Run every Monday at 12:00 UTC
-  workflow_dispatch:  # Allow manual triggering
+    - cron: '0 0 * * 3' # Weekly on Wednesday
+  workflow_dispatch:
 
 permissions:
   contents: write
   pull-requests: write
 
 jobs:
-  update-dependencies:
+  dependencies:
     name: Update Dependencies
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
           go-version: '1.24.x'
 
-      - name: Update Go Dependencies
+      - name: Update Go modules
         run: |
-          go get -u ./...
+          go get -u all
           go mod tidy
+          go mod vendor
+
+      - name: Check for changes
+        id: git-check
+        run: |
+          if [[ -n "$(git status --porcelain)" ]]; then
+            echo "changes=true" >> $GITHUB_OUTPUT
+          else
+            echo "changes=false" >> $GITHUB_OUTPUT
+          fi
 
       - name: Create Pull Request
+        if: steps.git-check.outputs.changes == 'true'
         uses: peter-evans/create-pull-request@v6
         with:
-          commit-message: "chore: update dependencies"
-          title: "chore: update dependencies"
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: 'chore: update dependencies'
+          title: 'chore: update dependencies'
           body: |
-            This PR updates Go dependencies to their latest versions.
+            This PR updates Go module dependencies to their latest versions.
 
-            This is an automated PR created by the dependency update workflow.
-          branch: deps/update-dependencies
+            Dependencies updated automatically by the Dependency Updates workflow.
+          branch: dependencies/update
           base: main
-          delete-branch: true
-          labels: |
-            dependencies
-            automated pr
+          labels: dependencies,automated
+          assignees: mdaashir
+          reviewers: mdaashir
+          draft: false
+
+  vulnerabilities:
+    name: Fix Vulnerabilities
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24.x'
+
+      - name: Install govulncheck
+        run: go install golang.org/x/vuln/cmd/govulncheck@latest
+
+      - name: Check for vulnerabilities
+        id: vulncheck
+        run: |
+          govulncheck ./... > vulnerability-report.txt
+          if [[ -s vulnerability-report.txt ]]; then
+            echo "vulnerabilities=true" >> $GITHUB_OUTPUT
+          else
+            echo "vulnerabilities=false" >> $GITHUB_OUTPUT
+          fi
+        continue-on-error: true
+
+      - name: Create issue for vulnerabilities
+        if: steps.vulncheck.outputs.vulnerabilities == 'true'
+        uses: peter-evans/create-issue-from-file@v4
+        with:
+          title: 'Security Alert: Vulnerabilities detected in dependencies'
+          content-filepath: ./vulnerability-report.txt
+          labels: security,vulnerability,high-priority
+          assignees: mdaashir
