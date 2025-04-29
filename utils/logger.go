@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
+	"runtime"
 	"time"
 )
 
@@ -19,9 +21,10 @@ const (
 
 // Logger handles application logging
 type Logger struct {
-	Out    io.Writer
-	Level  LogLevel
-	Prefix string
+	Out        io.Writer
+	Level      LogLevel
+	Prefix     string
+	WithSource bool // Whether to include source file info
 }
 
 var defaultLogger *Logger
@@ -29,23 +32,31 @@ var defaultLogger *Logger
 // Initialize default logger
 func init() {
 	defaultLogger = &Logger{
-		Out:    os.Stdout,
-		Level:  INFO,
-		Prefix: "",
+		Out:        os.Stdout,
+		Level:      INFO,
+		Prefix:     "",
+		WithSource: false,
 	}
 }
 
 // NewLogger creates a new logger instance
 func NewLogger(path string, level LogLevel, maxSize int64) (*Logger, error) {
+	// Ensure directory exists
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return nil, fmt.Errorf("failed to create log directory: %v", err)
+	}
+
 	file, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0600)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open log file: %v", err)
 	}
 
 	return &Logger{
-		Out:    file,
-		Level:  level,
-		Prefix: "",
+		Out:        file,
+		Level:      level,
+		Prefix:     "",
+		WithSource: true,
 	}, nil
 }
 
@@ -53,6 +64,9 @@ func NewLogger(path string, level LogLevel, maxSize int64) (*Logger, error) {
 func ConfigureLogger(level LogLevel, output io.Writer) {
 	defaultLogger.Level = level
 	defaultLogger.Out = output
+
+	// Enable source information in debug mode
+	defaultLogger.WithSource = (level == DEBUG)
 }
 
 // Debug logs a debug message
@@ -123,11 +137,29 @@ func (l *Logger) Tip(format string, v ...interface{}) {
 	l.log("TIP", format, v...)
 }
 
+// getSourceInfo returns the calling file and line number
+func getSourceInfo() string {
+	_, file, line, ok := runtime.Caller(3)
+	if !ok {
+		return ""
+	}
+	return fmt.Sprintf("%s:%d", filepath.Base(file), line)
+}
+
 // log formats and writes a log message
 func (l *Logger) log(level, format string, v ...interface{}) {
 	timestamp := time.Now().Format("2006-01-02 15:04:05")
 	message := fmt.Sprintf(format, v...)
-	fmt.Fprintf(l.Out, "[%s] %s: %s\n", level, timestamp, message)
+
+	var logLine string
+	if l.WithSource {
+		source := getSourceInfo()
+		logLine = fmt.Sprintf("[%s] %s (%s): %s\n", level, timestamp, source, message)
+	} else {
+		logLine = fmt.Sprintf("[%s] %s: %s\n", level, timestamp, message)
+	}
+
+	fmt.Fprint(l.Out, logLine)
 }
 
 // GetLogger returns the default logger instance
@@ -141,4 +173,9 @@ func (l *Logger) Close() error {
 		return closer.Close()
 	}
 	return nil
+}
+
+// EnableDebugSourceInfo enables source file information in logs
+func EnableDebugSourceInfo(enable bool) {
+	defaultLogger.WithSource = enable
 }

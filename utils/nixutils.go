@@ -2,6 +2,9 @@
 package utils
 
 import (
+	"bufio"
+	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -9,12 +12,84 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"time"
 )
+
+// NixCommand represents a command to be executed with proper error handling
+type NixCommand struct {
+	Cmd        string
+	Args       []string
+	WorkingDir string
+	Timeout    time.Duration
+}
+
+// ExecuteWithTimeout executes a command with a timeout
+func ExecuteWithTimeout(ctx context.Context, cmd *exec.Cmd) ([]byte, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	if err := cmd.Start(); err != nil {
+		return nil, fmt.Errorf("failed to start command: %v", err)
+	}
+
+	done := make(chan error, 1)
+	go func() {
+		done <- cmd.Wait()
+	}()
+
+	select {
+	case <-ctx.Done():
+		// Kill the process if context canceled or timed out
+		if err := cmd.Process.Kill(); err != nil {
+			Debug("Failed to kill process: %v", err)
+		}
+		return nil, fmt.Errorf("command timed out: %v", ctx.Err())
+	case err := <-done:
+		if err != nil {
+			return nil, fmt.Errorf("command failed: %v\nstderr: %s", err, stderr.String())
+		}
+	}
+
+	return stdout.Bytes(), nil
+}
+
+// Run executes a NixCommand with proper error handling
+func (c *NixCommand) Run() (string, error) {
+	if c.Timeout == 0 {
+		c.Timeout = 30 * time.Second // Default timeout
+	}
+
+	Debug("Executing command: %s %v", c.Cmd, c.Args)
+
+	ctx, cancel := context.WithTimeout(context.Background(), c.Timeout)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, c.Cmd, c.Args...)
+	if c.WorkingDir != "" {
+		cmd.Dir = c.WorkingDir
+	}
+
+	output, err := ExecuteWithTimeout(ctx, cmd)
+	if err != nil {
+		return "", err
+	}
+
+	return string(output), nil
+}
 
 // IsNixInstalled checks if Nix is installed
 func IsNixInstalled() bool {
 	_, err := exec.LookPath("nix")
-	return err == nil
+	if err != nil {
+		Debug("Nix binary not found in PATH: %v", err)
+		return false
+	}
+	return true
 }
 
 // IsInNixShell checks if currently in a Nix shell environment
@@ -28,32 +103,47 @@ func GetNixPath() (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("nix not found in PATH: %v", err)
 	}
-	return path, nil
+	return filepath.Clean(path), nil
 }
 
 // CheckFlakeSupport checks if Nix flakes are enabled
 func CheckFlakeSupport() bool {
-	cmd := exec.Command("nix", "flake", "--version")
-	err := cmd.Run()
-	return err == nil
+	cmd := &NixCommand{
+		Cmd:     "nix",
+		Args:    []string{"flake", "--version"},
+		Timeout: 5 * time.Second,
+	}
+
+	_, err := cmd.Run()
+	if err != nil {
+		Debug("Flakes not supported: %v", err)
+		return false
+	}
+	return true
 }
 
 // UpdateChannel updates the current Nix channel
 func UpdateChannel() error {
-	cmd := exec.Command("nix-channel", "--update")
-	if output, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("failed to update channel: %v\nOutput: %s", err, output)
+	cmd := &NixCommand{
+		Cmd:     "nix-channel",
+		Args:    []string{"--update"},
+		Timeout: 120 * time.Second, // Channel updates can take time
 	}
-	return nil
+
+	_, err := cmd.Run()
+	return err
 }
 
 // CollectGarbage runs the Nix garbage collector
 func CollectGarbage() error {
-	cmd := exec.Command("nix-collect-garbage", "-d")
-	if output, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("failed to collect garbage: %v\nOutput: %s", err, output)
+	cmd := &NixCommand{
+		Cmd:     "nix-collect-garbage",
+		Args:    []string{"-d"},
+		Timeout: 120 * time.Second, // GC can take time
 	}
-	return nil
+
+	_, err := cmd.Run()
+	return err
 }
 
 // GetSystemInfo returns basic system information
@@ -61,23 +151,73 @@ func GetSystemInfo() (map[string]string, error) {
 	info := make(map[string]string)
 
 	// Get Nix version
-	if out, err := exec.Command("nix", "--version").Output(); err == nil {
-		info["nix_version"] = strings.TrimSpace(string(out))
+	nixVersion, err := GetNixVersion()
+	if err == nil {
+		info["nix_version"] = nixVersion
+	} else {
+		Debug("Failed to get Nix version: %v", err)
 	}
 
 	// Get system architecture
-	if out, err := exec.Command("nix", "eval", "--impure", "--expr", "builtins.currentSystem").Output(); err == nil {
-		info["system"] = strings.Trim(string(out), "\"")
+	cmd := &NixCommand{
+		Cmd:     "nix",
+		Args:    []string{"eval", "--impure", "--expr", "builtins.currentSystem"},
+		Timeout: 5 * time.Second,
 	}
+
+	if out, err := cmd.Run(); err == nil {
+		info["system"] = strings.Trim(out, "\"\n ")
+	} else {
+		Debug("Failed to get system architecture: %v", err)
+	}
+
+	// Check if running on multi-user installation
+	cmd = &NixCommand{
+		Cmd:     "nix",
+		Args:    []string{"show-config"},
+		Timeout: 5 * time.Second,
+	}
+
+	if out, err := cmd.Run(); err == nil {
+		info["multi_user"] = fmt.Sprintf("%t", strings.Contains(out, "sandbox = true"))
+	}
+
+	// Check for flake support
+	info["flakes_enabled"] = fmt.Sprintf("%t", CheckFlakeSupport())
+
+	// Check if in nix shell
+	info["in_nix_shell"] = fmt.Sprintf("%t", IsInNixShell())
 
 	return info, nil
 }
 
 // ValidatePackage checks if a package name is valid
 func ValidatePackage(pkg string) bool {
+	if pkg == "" {
+		return false
+	}
+
+	// Basic validation of package name format
+	validName := regexp.MustCompile(`^[a-zA-Z0-9_.-]+$`).MatchString(pkg)
+	if !validName {
+		Debug("Invalid package name format: %s", pkg)
+		return false
+	}
+
 	// Check if package exists in nixpkgs
-	cmd := exec.Command("nix-env", "-qaP", pkg)
-	return cmd.Run() == nil
+	cmd := &NixCommand{
+		Cmd:     "nix-env",
+		Args:    []string{"-qaP", pkg},
+		Timeout: 10 * time.Second,
+	}
+
+	_, err := cmd.Run()
+	if err != nil {
+		Debug("Package validation failed for %s: %v", pkg, err)
+		return false
+	}
+
+	return true
 }
 
 // CheckNixInstallation verifies Nix is properly installed
@@ -96,18 +236,34 @@ func CheckNixInstallation() error {
 		return fmt.Errorf("nix-store not found: %v", err)
 	}
 
+	// Try to run a basic nix command
+	cmd := &NixCommand{
+		Cmd:     "nix",
+		Args:    []string{"--version"},
+		Timeout: 5 * time.Second,
+	}
+
+	if _, err := cmd.Run(); err != nil {
+		return fmt.Errorf("nix command failed: %v", err)
+	}
+
 	return nil
 }
 
 // GetChannelInfo gets information about the current Nix channel
 func GetChannelInfo() (string, error) {
-	cmd := exec.Command("nix-channel", "--list")
-	output, err := cmd.Output()
-	if err != nil {
-		return "", fmt.Errorf("failed to get channel info: %v", err)
+	cmd := &NixCommand{
+		Cmd:     "nix-channel",
+		Args:    []string{"--list"},
+		Timeout: 5 * time.Second,
 	}
 
-	channel := strings.TrimSpace(string(output))
+	output, err := cmd.Run()
+	if err != nil {
+		return "", err
+	}
+
+	channel := strings.TrimSpace(output)
 	if channel == "" {
 		return "", fmt.Errorf("no channels configured")
 	}
@@ -117,12 +273,18 @@ func GetChannelInfo() (string, error) {
 
 // GetNixVersion returns the installed Nix version
 func GetNixVersion() (string, error) {
-	cmd := exec.Command("nix", "--version")
-	output, err := cmd.Output()
-	if err != nil {
-		return "", fmt.Errorf("failed to get Nix version: %v", err)
+	cmd := &NixCommand{
+		Cmd:     "nix",
+		Args:    []string{"--version"},
+		Timeout: 5 * time.Second,
 	}
-	return strings.TrimSpace(string(output)), nil
+
+	output, err := cmd.Run()
+	if err != nil {
+		return "", err
+	}
+
+	return strings.TrimSpace(output), nil
 }
 
 // GetInstalledPackages returns a list of installed packages
@@ -134,6 +296,8 @@ func GetInstalledPackages() ([]string, error) {
 		pkgs, err := ExtractShellNixPackages("shell.nix")
 		if err == nil {
 			packages = append(packages, pkgs...)
+		} else {
+			Debug("Failed to extract packages from shell.nix: %v", err)
 		}
 	}
 
@@ -142,23 +306,54 @@ func GetInstalledPackages() ([]string, error) {
 		pkgs, err := ExtractFlakePackages("flake.nix")
 		if err == nil {
 			packages = append(packages, pkgs...)
+		} else {
+			Debug("Failed to extract packages from flake.nix: %v", err)
 		}
 	}
 
-	return packages, nil
+	if len(packages) == 0 {
+		Debug("No packages found in shell.nix or flake.nix")
+	}
+
+	// Remove duplicates
+	return removeDuplicates(packages), nil
+}
+
+// removeDuplicates removes duplicate items from a string slice
+func removeDuplicates(items []string) []string {
+	seen := make(map[string]bool)
+	result := []string{}
+
+	for _, item := range items {
+		if _, ok := seen[item]; !ok {
+			seen[item] = true
+			result = append(result, item)
+		}
+	}
+
+	return result
 }
 
 // GetPackageVersion returns the version of a package
 func GetPackageVersion(pkg string) (string, error) {
-	cmd := exec.Command("nix-env", "-qa", "--json", pkg)
-	output, err := cmd.Output()
+	if !ValidatePackage(pkg) {
+		return "", fmt.Errorf("invalid package name: %s", pkg)
+	}
+
+	cmd := &NixCommand{
+		Cmd:     "nix-env",
+		Args:    []string{"-qa", "--json", pkg},
+		Timeout: 10 * time.Second,
+	}
+
+	output, err := cmd.Run()
 	if err != nil {
-		return "", fmt.Errorf("failed to get package version: %v", err)
+		return "", err
 	}
 
 	// Parse JSON output to get version
 	var result map[string]interface{}
-	if err := json.Unmarshal(output, &result); err != nil {
+	if err := json.Unmarshal([]byte(output), &result); err != nil {
 		return "", fmt.Errorf("failed to parse package info: %v", err)
 	}
 
@@ -175,28 +370,38 @@ func GetPackageVersion(pkg string) (string, error) {
 
 // GetNixpkgsRevision gets the current Git revision of nixpkgs
 func GetNixpkgsRevision() (string, error) {
-	cmd := exec.Command("nix", "eval", "--raw", "nixpkgs.lib.version")
-	output, err := cmd.Output()
-	if err != nil {
-		return "", fmt.Errorf("failed to get nixpkgs revision: %v", err)
+	cmd := &NixCommand{
+		Cmd:     "nix",
+		Args:    []string{"eval", "--raw", "nixpkgs.lib.version"},
+		Timeout: 5 * time.Second,
 	}
-	return strings.TrimSpace(string(output)), nil
+
+	output, err := cmd.Run()
+	if err != nil {
+		return "", err
+	}
+
+	return strings.TrimSpace(output), nil
 }
 
 // ExtractShellNixPackages extracts package list from shell.nix
 func ExtractShellNixPackages(path string) ([]string, error) {
-	content, err := os.ReadFile(path)
+	if !FileExists(path) {
+		return nil, fmt.Errorf("shell.nix file not found: %s", path)
+	}
+
+	content, err := ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read shell.nix: %v", err)
 	}
 
 	// Regular expression to match package lines
-	re := regexp.MustCompile(`(?m)^\s*([a-zA-Z0-9_-]+)\s*$`)
-	matches := re.FindAllStringSubmatch(string(content), -1)
+	re := regexp.MustCompile(`(?m)^\s*([a-zA-Z0-9_.-]+)\s*$`)
+	matches := re.FindAllStringSubmatch(content, -1)
 
 	var packages []string
 	for _, match := range matches {
-		if len(match) > 1 {
+		if len(match) > 1 && match[1] != "" && match[1] != "with" && match[1] != "pkgs" {
 			packages = append(packages, match[1])
 		}
 	}
@@ -206,26 +411,45 @@ func ExtractShellNixPackages(path string) ([]string, error) {
 
 // ExtractFlakePackages extracts package list from flake.nix
 func ExtractFlakePackages(path string) ([]string, error) {
-	content, err := os.ReadFile(path)
+	if !FileExists(path) {
+		return nil, fmt.Errorf("flake.nix file not found: %s", path)
+	}
+
+	content, err := ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read flake.nix: %v", err)
 	}
 
 	// Regular expression to match package lines in buildInputs
-	re := regexp.MustCompile(`buildInputs\s*=\s*\[\s*([^\]]+)\s*\]`)
-	match := re.FindStringSubmatch(string(content))
+	re := regexp.MustCompile(`buildInputs\s*=\s*(?:with[^;]*;)?\s*\[\s*([^\]]+)\s*\]`)
+	match := re.FindStringSubmatch(content)
 	if len(match) < 2 {
 		return nil, fmt.Errorf("no packages found in flake.nix")
 	}
 
 	// Split package names and clean them
-	packages := strings.Split(match[1], "\n")
+	packageSection := match[1]
+	scanner := bufio.NewScanner(strings.NewReader(packageSection))
+
 	var result []string
-	for _, pkg := range packages {
-		pkg = strings.TrimSpace(pkg)
-		if pkg != "" && !strings.HasPrefix(pkg, "#") {
-			result = append(result, pkg)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
 		}
+
+		// Extract package name from line
+		parts := strings.Fields(line)
+		if len(parts) > 0 {
+			pkg := strings.TrimSuffix(parts[0], ";")
+			if pkg != "" {
+				result = append(result, pkg)
+			}
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		return nil, fmt.Errorf("error parsing flake.nix: %v", err)
 	}
 
 	return result, nil
@@ -233,35 +457,82 @@ func ExtractFlakePackages(path string) ([]string, error) {
 
 // PinPackage pins a package to a specific version
 func PinPackage(pkg string, version string) error {
-	cmd := exec.Command("nix-env", "--set", pkg, version)
-	if output, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("failed to pin package: %v\nOutput: %s", err, output)
+	if !ValidatePackage(pkg) {
+		return fmt.Errorf("invalid package name: %s", pkg)
 	}
-	return nil
+
+	cmd := &NixCommand{
+		Cmd:     "nix-env",
+		Args:    []string{"--set", pkg, version},
+		Timeout: 30 * time.Second,
+	}
+
+	_, err := cmd.Run()
+	return err
 }
 
 // InitFlake initializes a Nix flake in the given directory
 func InitFlake(dir string) error {
-	cmd := exec.Command("nix", "flake", "init")
-	cmd.Dir = dir
-	if output, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("failed to init flake: %v\nOutput: %s", err, output)
+	// Check if flakes are supported
+	if !CheckFlakeSupport() {
+		return fmt.Errorf("nix flakes are not supported on this system")
 	}
-	return nil
+
+	if !DirExists(dir) {
+		return fmt.Errorf("directory does not exist: %s", dir)
+	}
+
+	// Check if flake.nix already exists
+	flakePath := filepath.Join(dir, "flake.nix")
+	if FileExists(flakePath) {
+		return fmt.Errorf("flake.nix already exists in %s", dir)
+	}
+
+	cmd := &NixCommand{
+		Cmd:        "nix",
+		Args:       []string{"flake", "init"},
+		WorkingDir: dir,
+		Timeout:    10 * time.Second,
+	}
+
+	_, err := cmd.Run()
+	return err
 }
 
 // UpdateFlake updates a Nix flake in the given directory
 func UpdateFlake(dir string) error {
-	cmd := exec.Command("nix", "flake", "update")
-	cmd.Dir = dir
-	if output, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("failed to update flake: %v\nOutput: %s", err, output)
+	// Check if flakes are supported
+	if !CheckFlakeSupport() {
+		return fmt.Errorf("nix flakes are not supported on this system")
 	}
-	return nil
+
+	if !DirExists(dir) {
+		return fmt.Errorf("directory does not exist: %s", dir)
+	}
+
+	// Check if flake.nix exists
+	flakePath := filepath.Join(dir, "flake.nix")
+	if !FileExists(flakePath) {
+		return fmt.Errorf("flake.nix does not exist in %s", dir)
+	}
+
+	cmd := &NixCommand{
+		Cmd:        "nix",
+		Args:       []string{"flake", "update"},
+		WorkingDir: dir,
+		Timeout:    60 * time.Second, // Flake updates can take time
+	}
+
+	_, err := cmd.Run()
+	return err
 }
 
 // ParsePackageList parses package list from a Nix file
 func ParsePackageList(path string) ([]string, error) {
+	if !FileExists(path) {
+		return nil, fmt.Errorf("file not found: %s", path)
+	}
+
 	if strings.HasSuffix(path, "shell.nix") {
 		return ExtractShellNixPackages(path)
 	}
@@ -273,28 +544,67 @@ func ParsePackageList(path string) ([]string, error) {
 
 // GenerateShellNix generates a shell.nix file with given packages
 func GenerateShellNix(dir string, packages []string) error {
+	if !DirExists(dir) {
+		return fmt.Errorf("directory does not exist: %s", dir)
+	}
+
+	// Validate packages
+	var validPackages []string
+	for _, pkg := range packages {
+		if ValidatePackage(pkg) {
+			validPackages = append(validPackages, pkg)
+		} else {
+			Debug("Skipping invalid package: %s", pkg)
+		}
+	}
+
 	content := fmt.Sprintf(`{ pkgs ? import <nixpkgs> {} }:
 
 pkgs.mkShell {
+  name = "nsm-managed-shell";
+
   packages = with pkgs; [
     %s
   ];
-}`, strings.Join(packages, "\n    "))
 
-	return WriteFile(filepath.Join(dir, "shell.nix"), content)
+  shellHook = ''
+    echo "🚀 Welcome to your Nix development environment!"
+    echo "📦 Use 'nsm add <package>' to add more packages"
+  '';
+}`, strings.Join(validPackages, "\n    "))
+
+	filePath := filepath.Join(dir, "shell.nix")
+	return SafeWrite(filePath, []byte(content), 0600)
 }
 
 // GetNixShellEnv gets environment variables for a Nix shell
 func GetNixShellEnv(dir string) (map[string]string, error) {
-	cmd := exec.Command("nix-shell", "--show-trace", "--run", "env")
-	cmd.Dir = dir
-	output, err := cmd.Output()
+	if !DirExists(dir) {
+		return nil, fmt.Errorf("directory does not exist: %s", dir)
+	}
+
+	// Check if shell.nix or flake.nix exists
+	shellNixPath := filepath.Join(dir, "shell.nix")
+	flakeNixPath := filepath.Join(dir, "flake.nix")
+
+	if !FileExists(shellNixPath) && !FileExists(flakeNixPath) {
+		return nil, fmt.Errorf("neither shell.nix nor flake.nix found in %s", dir)
+	}
+
+	cmd := &NixCommand{
+		Cmd:        "nix-shell",
+		Args:       []string{"--show-trace", "--run", "env"},
+		WorkingDir: dir,
+		Timeout:    30 * time.Second,
+	}
+
+	output, err := cmd.Run()
 	if err != nil {
-		return nil, fmt.Errorf("failed to get shell env: %v", err)
+		return nil, err
 	}
 
 	env := make(map[string]string)
-	for _, line := range strings.Split(string(output), "\n") {
+	for _, line := range strings.Split(output, "\n") {
 		parts := strings.SplitN(line, "=", 2)
 		if len(parts) == 2 {
 			env[parts[0]] = parts[1]
@@ -306,17 +616,22 @@ func GetNixShellEnv(dir string) (map[string]string, error) {
 
 // GetNixCacheDir gets the Nix cache directory
 func GetNixCacheDir() (string, error) {
-	cmd := exec.Command("nix", "show-config")
-	output, err := cmd.Output()
-	if err != nil {
-		return "", fmt.Errorf("failed to get nix config: %v", err)
+	cmd := &NixCommand{
+		Cmd:     "nix",
+		Args:    []string{"show-config"},
+		Timeout: 5 * time.Second,
 	}
 
-	for _, line := range strings.Split(string(output), "\n") {
+	output, err := cmd.Run()
+	if err != nil {
+		return "", err
+	}
+
+	for _, line := range strings.Split(output, "\n") {
 		if strings.HasPrefix(line, "store-dir") {
 			parts := strings.SplitN(line, "=", 2)
 			if len(parts) == 2 {
-				return strings.TrimSpace(parts[1]), nil
+				return filepath.Clean(strings.TrimSpace(parts[1])), nil
 			}
 		}
 	}
@@ -326,42 +641,59 @@ func GetNixCacheDir() (string, error) {
 
 // CleanNixCache cleans the Nix store cache
 func CleanNixCache() error {
-	cmd := exec.Command("nix-store", "--gc")
-	if output, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("failed to clean cache: %v\nOutput: %s", err, output)
+	cmd := &NixCommand{
+		Cmd:     "nix-store",
+		Args:    []string{"--gc"},
+		Timeout: 120 * time.Second, // GC can take time
 	}
-	return nil
+
+	_, err := cmd.Run()
+	return err
 }
 
 // InvalidateNixCache invalidates Nix binary cache
 func InvalidateNixCache() error {
-	cmd := exec.Command("nix-store", "--verify", "--check-contents")
-	if output, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("failed to invalidate cache: %v\nOutput: %s", err, output)
+	cmd := &NixCommand{
+		Cmd:     "nix-store",
+		Args:    []string{"--verify", "--check-contents"},
+		Timeout: 120 * time.Second, // Can be slow
 	}
-	return nil
+
+	_, err := cmd.Run()
+	return err
 }
 
 // GetCurrentProfile gets the current Nix profile path
 func GetCurrentProfile() (string, error) {
-	cmd := exec.Command("nix-env", "--profile")
-	output, err := cmd.Output()
-	if err != nil {
-		return "", fmt.Errorf("failed to get current profile: %v", err)
+	cmd := &NixCommand{
+		Cmd:     "nix-env",
+		Args:    []string{"--profile"},
+		Timeout: 5 * time.Second,
 	}
-	return strings.TrimSpace(string(output)), nil
+
+	output, err := cmd.Run()
+	if err != nil {
+		return "", err
+	}
+
+	return strings.TrimSpace(output), nil
 }
 
 // ListProfileGenerations lists all profile generations
 func ListProfileGenerations() ([]string, error) {
-	cmd := exec.Command("nix-env", "--list-generations")
-	output, err := cmd.Output()
+	cmd := &NixCommand{
+		Cmd:     "nix-env",
+		Args:    []string{"--list-generations"},
+		Timeout: 5 * time.Second,
+	}
+
+	output, err := cmd.Run()
 	if err != nil {
-		return nil, fmt.Errorf("failed to list generations: %v", err)
+		return nil, err
 	}
 
 	var generations []string
-	for _, line := range strings.Split(string(output), "\n") {
+	for _, line := range strings.Split(output, "\n") {
 		if line = strings.TrimSpace(line); line != "" {
 			generations = append(generations, line)
 		}
@@ -371,9 +703,12 @@ func ListProfileGenerations() ([]string, error) {
 
 // RollbackProfile rolls back to the previous generation
 func RollbackProfile() error {
-	cmd := exec.Command("nix-env", "--rollback")
-	if output, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("failed to rollback: %v\nOutput: %s", err, output)
+	cmd := &NixCommand{
+		Cmd:     "nix-env",
+		Args:    []string{"--rollback"},
+		Timeout: 30 * time.Second,
 	}
-	return nil
+
+	_, err := cmd.Run()
+	return err
 }
