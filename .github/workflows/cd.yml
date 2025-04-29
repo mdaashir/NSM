@@ -2,7 +2,7 @@ name: Continuous Deployment
 
 on:
   push:
-    branches: [main]
+    branches: ['**']
   workflow_dispatch:
     inputs:
       environment:
@@ -102,6 +102,13 @@ jobs:
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: 'trivy-results.sarif'
+
+      - name: Cleanup deployment artifacts (non-main branches)
+        if: github.ref != 'refs/heads/main'
+        run: |
+          echo "Cleaning up deployment artifacts for non-main branch..."
+          rm -f trivy-results.sarif
+          docker image prune -af
 
   notify:
     name: Notify Deployment

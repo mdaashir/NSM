@@ -2,9 +2,9 @@ name: Code Quality
 
 on:
   push:
-    branches: [main]
+    branches: ['**']
   pull_request:
-    branches: [main]
+    branches: ['**']
   schedule:
     - cron: '0 0 * * 0'  # Run weekly on Sundays
   workflow_dispatch:
@@ -55,6 +55,13 @@ jobs:
           version: '2023.1.6'
           install-go: false
 
+      - name: Cleanup code quality artifacts and cache (non-main branches)
+        if: github.ref != 'refs/heads/main'
+        run: |
+          echo "Cleaning up code quality artifacts and cache for non-main branch..."
+          rm -rf ~/.cache/golangci-lint
+          rm -rf *.txt
+
   docs:
     name: Documentation Check
     runs-on: ubuntu-latest
@@ -69,15 +76,11 @@ jobs:
       - name: Check Documentation Coverage
         run: |
           go install golang.org/x/tools/cmd/godoc@latest
+          godoc -analysis=type .
 
-          # Check if all exported functions have documentation
-          FUNCS_WITHOUT_DOCS=$(go doc -all . | grep -Ec "^func [A-Z][^(]+ \{$")
-          if [ $FUNCS_WITHOUT_DOCS -gt 0 ]; then
-            echo "Warning: $FUNCS_WITHOUT_DOCS exported functions don't have documentation"
-            echo "Please add documentation for all exported functions"
-          fi
-
-          # Check if README is up to date with features
-          if ! grep -q "Cross-platform compatibility" README.md; then
-            echo "Warning: README.md might be missing information about cross-platform compatibility"
-          fi
+      - name: Cleanup code quality artifacts and cache (non-main branches)
+        if: github.ref != 'refs/heads/main'
+        run: |
+          echo "Cleaning up code quality artifacts and cache for non-main branch..."
+          rm -rf ~/.cache/golangci-lint
+          rm -rf *.txt

@@ -2,9 +2,9 @@ name: Performance Monitoring
 
 on:
   push:
-    branches: [main]
+    branches: ['**']
   pull_request:
-    branches: [main]
+    branches: ['**']
   schedule:
     - cron: '0 0 * * 0' # Weekly on Sunday
   workflow_dispatch:
@@ -47,6 +47,12 @@ jobs:
           name: benchmark-results
           path: benchmark_results.txt
 
+      - name: Cleanup benchmark artifacts (non-main branches)
+        if: github.ref != 'refs/heads/main'
+        run: |
+          echo "Cleaning up benchmark artifacts for non-main branch..."
+          rm -f benchmark_results.txt
+
   profiling:
     name: CPU/Memory Profiling
     runs-on: ubuntu-latest
@@ -81,6 +87,12 @@ jobs:
           name: profile-analysis
           path: profiles/
 
+      - name: Cleanup profile artifacts (non-main branches)
+        if: github.ref != 'refs/heads/main'
+        run: |
+          echo "Cleaning up profile artifacts for non-main branch..."
+          rm -rf profiles/
+
   resource-usage:
     name: Resource Usage Analysis
     runs-on: ubuntu-latest
@@ -113,3 +125,9 @@ jobs:
         with:
           name: resource-analysis
           path: resource_analysis.txt
+
+      - name: Cleanup resource analysis artifacts (non-main branches)
+        if: github.ref != 'refs/heads/main'
+        run: |
+          echo "Cleaning up resource analysis artifacts for non-main branch..."
+          rm -f resource_analysis.txt nsm

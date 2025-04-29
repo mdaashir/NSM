@@ -2,6 +2,7 @@ name: Release
 
 on:
   push:
+    branches: ['**']
     tags:
       - 'v*'
   workflow_dispatch:
@@ -129,6 +130,14 @@ jobs:
           git add CHANGELOG.md
           git commit -m "Update CHANGELOG.md for $VERSION"
           git push
+
+      - name: Cleanup release artifacts (non-main branches)
+        if: github.ref != 'refs/heads/main'
+        run: |
+          echo "Cleaning up release artifacts for non-main branch..."
+          rm -f CHANGELOG.new
+          rm -f CHANGELOG.md
+          git clean -fdx
 
   notify:
     name: Notify Release

@@ -2,9 +2,9 @@ name: Security Scanning
 
 on:
   push:
-    branches: [main]
+    branches: ['**']
   pull_request:
-    branches: [main]
+    branches: ['**']
   schedule:
     - cron: '0 0 * * 1' # Weekly on Monday
   workflow_dispatch:
@@ -58,6 +58,12 @@ jobs:
           name: vulnerability-report
           path: vulnerability-report.txt
 
+      - name: Cleanup vulnerability report (non-main branches)
+        if: github.ref != 'refs/heads/main'
+        run: |
+          echo "Cleaning up vulnerability report for non-main branch..."
+          rm -f vulnerability-report.txt
+
   secret-scanning:
     name: Secret Scanning
     runs-on: ubuntu-latest
@@ -86,3 +92,9 @@ jobs:
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: gosec-results.sarif
+
+      - name: Cleanup SARIF file (non-main branches)
+        if: github.ref != 'refs/heads/main'
+        run: |
+          echo "Cleaning up SARIF file for non-main branch..."
+          rm -f gosec-results.sarif

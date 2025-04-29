@@ -2,9 +2,9 @@ name: Test
 
 on:
   push:
-    branches: [main]
+    branches: ['**']
   pull_request:
-    branches: [main]
+    branches: ['**']
   workflow_dispatch:
 
 jobs:
@@ -80,6 +80,13 @@ jobs:
           path: '**/*.out'
           reporter: go-test
 
+      - name: Cleanup test artifacts and cache (non-main branches)
+        if: github.ref != 'refs/heads/main'
+        run: |
+          echo "Cleaning up test artifacts and cache for non-main branch..."
+          rm -rf coverage.txt unit.out integration.out benchmark_results.txt profiles/ *.out
+          go clean -testcache
+
   lint:
     name: Lint
     runs-on: ubuntu-latest
@@ -107,6 +114,12 @@ jobs:
           version: latest
           args: --timeout=5m --verbose
 
+      - name: Cleanup lint cache (non-main branches)
+        if: github.ref != 'refs/heads/main'
+        run: |
+          echo "Cleaning up lint cache for non-main branch..."
+          rm -rf ~/.cache/golangci-lint
+
   security:
     name: Security Scan
     runs-on: ubuntu-latest
@@ -132,3 +145,9 @@ jobs:
       - name: Run Nancy (Dependency Vulnerability Scanner)
         run: |
           go list -json -deps ./... | nancy sleuth
+
+      - name: Cleanup security scan artifacts (non-main branches)
+        if: github.ref != 'refs/heads/main'
+        run: |
+          echo "Cleaning up security scan artifacts for non-main branch..."
+          rm -rf gosec-results.sarif

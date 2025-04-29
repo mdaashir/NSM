@@ -1,6 +1,8 @@
 name: Dependency Updates
 
 on:
+  push:
+    branches: ['**']
   schedule:
     - cron: '0 0 * * 3' # Weekly on Wednesday
   workflow_dispatch:
@@ -55,6 +57,12 @@ jobs:
           reviewers: mdaashir
           draft: false
 
+      - name: Cleanup dependency update artifacts (non-main branches)
+        if: github.ref != 'refs/heads/main'
+        run: |
+          echo "Cleaning up dependency update artifacts for non-main branch..."
+          git clean -fdx
+
   vulnerabilities:
     name: Fix Vulnerabilities
     runs-on: ubuntu-latest
@@ -89,3 +97,9 @@ jobs:
           content-filepath: ./vulnerability-report.txt
           labels: security,vulnerability,high-priority
           assignees: mdaashir
+
+      - name: Cleanup vulnerability artifacts (non-main branches)
+        if: github.ref != 'refs/heads/main'
+        run: |
+          echo "Cleaning up vulnerability artifacts for non-main branch..."
+          rm -f vulnerability-report.txt
