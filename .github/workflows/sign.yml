@@ -22,7 +22,7 @@ jobs:
           fetch-depth: 0
 
       - name: Install cosign
-        uses: sigstore/cosign-installer@v3.10.0
+        uses: sigstore/cosign-installer@v4.0.0
 
       - name: Setup Syft
         uses: anchore/sbom-action/download-syft@v0.15.10
@@ -44,7 +44,7 @@ jobs:
           cosign sign-blob --output-signature sbom.json.sig sbom.json
 
       - name: Upload SBOM and signature
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: sbom-and-signature
           path: |

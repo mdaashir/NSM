@@ -76,7 +76,7 @@ jobs:
           go build -v -trimpath -ldflags="-s -w" -o dist/nsm-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.goos == 'windows' && '.exe' || '' }}
 
       - name: Upload binary
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: nsm-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.goos == 'windows' && '-exe' || '' }}
           path: dist/nsm-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.goos == 'windows' && '.exe' || '' }}
