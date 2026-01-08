@@ -3,7 +3,7 @@ module github.com/mdaashir/NSM
 go 1.24.2
 
 require (
-	github.com/spf13/cobra v1.10.1
+	github.com/spf13/cobra v1.10.2
 	github.com/spf13/viper v1.21.0
 )
 
