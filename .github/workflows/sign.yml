@@ -44,7 +44,7 @@ jobs:
           cosign sign-blob --output-signature sbom.json.sig sbom.json
 
       - name: Upload SBOM and signature
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: sbom-and-signature
           path: |
