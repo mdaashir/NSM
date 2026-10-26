@@ -10,10 +10,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Cache snap packages
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: |
             ~/snap/snapcraft/common/cache
