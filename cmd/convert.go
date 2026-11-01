@@ -16,15 +16,6 @@ const (
 	ChannelURLKey = "channel.url"
 )
 
-// backupFile creates a backup of the given file
-func backupFile(filename string) error {
-	content, err := os.ReadFile(filename)
-	if err != nil {
-		return err
-	}
-	return os.WriteFile(filename+".backup", content, 0600)
-}
-
 // parseShellNixPackages parses packages from shell.nix with regex
 func parseShellNixPackages(content string) []string {
 	var packages []string
@@ -88,7 +79,7 @@ Examples:
 		// Create a backup if requested
 		noBackup, _ := cmd.Flags().GetBool("no-backup")
 		if !noBackup {
-			if err := backupFile("shell.nix"); err != nil {
+			if err := os.WriteFile("shell.nix.backup", content, 0600); err != nil {
 				fmt.Println("❌ Error creating backup:", err)
 				return
 			}
