@@ -98,7 +98,7 @@ Download the appropriate binary for your platform from the [releases page](https
 
 Requirements:
 
-- Go 1.24 or later
+- Go 1.26 or later
 - Make (optional)
 
 ```bash

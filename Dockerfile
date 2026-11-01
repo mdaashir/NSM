@@ -1,5 +1,5 @@
 # Build stage
-FROM golang:1.24.2-alpine AS builder
+FROM golang:1.27.3-alpine AS builder
 
 # Install build dependencies
 RUN apk add --no-cache git make gcc musl-dev
@@ -22,7 +22,7 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
     -trimpath -o nsm
 
 # Final stage
-FROM alpine:latest AS final
+FROM alpine:3.24 AS final
 
 # Update packages and add security patches
 RUN apk upgrade --no-cache && \
