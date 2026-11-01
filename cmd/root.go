@@ -4,6 +4,7 @@ Copyright © 2025 Mohamed Aashir S <s.mohamedaashir@gmail.com>
 package cmd
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -12,9 +13,16 @@ import (
 	"github.com/spf13/viper"
 )
 
+var (
+	version = "dev"
+	commit  = "none"
+	date    = "unknown"
+)
+
 var rootCmd = &cobra.Command{
-	Use:   "NSM",
-	Short: "NSM (Nix Shell Manager) - A tool to manage Nix development environments",
+	Use:     "NSM",
+	Short:   "NSM (Nix Shell Manager) - A tool to manage Nix development environments",
+	Version: fmt.Sprintf("%s (commit %s, built %s)", version, commit, date),
 	Long: `NSM (Nix Shell Manager) is a powerful CLI tool that helps you manage Nix development environments.
 
 Features:
