@@ -28,9 +28,9 @@ builds:
     binary: nsm
     ldflags:
       - -s -w
-      - -X main.version={{.Version}}
-      - -X main.commit={{.Commit}}
-      - -X main.date={{.Date}}
+      - -X github.com/mdaashir/NSM/cmd.version={{.Version}}
+      - -X github.com/mdaashir/NSM/cmd.commit={{.Commit}}
+      - -X github.com/mdaashir/NSM/cmd.date={{.Date}}
     mod_timestamp: '{{ .CommitTimestamp }}'
     flags:
       - -trimpath
