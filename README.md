@@ -124,9 +124,12 @@ nsm init              # Create new shell.nix
 ### Manage Packages
 
 ```bash
-nsm add gcc python3   # Add packages
-nsm remove gcc        # Remove packages
-nsm list              # List installed packages
+nsm add gcc python3     # Add packages
+nsm remove gcc          # Remove packages
+nsm list                # List installed packages
+nsm list --format json  # Output as JSON
+nsm list --format csv   # Output as CSV
+nsm list --no-color     # Disable colored output
 ```
 
 ### Development Environment
