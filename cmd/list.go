@@ -4,6 +4,7 @@ Copyright © 2025 Mohamed Aashir S <s.mohamedaashir@gmail.com>
 package cmd
 
 import (
+	"fmt"
 	"os/exec"
 	"sort"
 	"strings"
@@ -24,10 +25,20 @@ This command will show:
 - Installation source (shell.nix/flake.nix)
 
 Examples:
-  nsm list              # List all packages
-  nsm list --json      # Output in JSON format
-  nsm list --installed # Show only installed packages`,
+  nsm list                  # List all packages
+  nsm list --format json    # Output as JSON
+  nsm list --format csv     # Output as CSV
+  nsm list --no-color       # Disable colored output`,
 	Run: func(cmd *cobra.Command, args []string) {
+		formatName, _ := cmd.Flags().GetString("format")
+		outputFormat, err := utils.ParseTableFormat(formatName)
+		if err != nil {
+			utils.Error("%v", err)
+			return
+		}
+
+		noColor, _ := cmd.Flags().GetBool("no-color")
+
 		// Check for Nix installation
 		if err := utils.CheckNixInstallation(); err != nil {
 			utils.Error("Nix is not installed. Please install Nix first!")
@@ -78,44 +89,44 @@ Examples:
 		// Sort packages alphabetically
 		sort.Strings(packages)
 
-		// Prepare table data
-		headers := []string{"Package", "Status", "Source"}
-		var rows [][]string
+		// Create table
+		table := utils.NewTableRenderer([]string{"Package", "Status", "Source"})
+		table.SetFormat(outputFormat)
+		if noColor || outputFormat != utils.FormatText {
+			table.DisableColors()
+		}
 
+		pendingCount := 0
 		for _, pkg := range packages {
 			status := "pending"
 			if installedPkgs[pkg] {
 				status = "installed"
-			}
-
-			rows = append(rows, []string{
-				pkg,
-				status,
-				configType,
-			})
-		}
-
-		// Output as a table
-		utils.Info("\n📦 Packages in your Nix environment:")
-		utils.Table(headers, rows)
-
-		utils.Info("\nTotal packages: %d", len(packages))
-		utils.Info("Configuration: %s", configType)
-
-		// Show tips based on package status
-		pendingCount := 0
-		for _, row := range rows {
-			if row[1] == "pending" {
+			} else {
 				pendingCount++
 			}
+
+			table.AddRow([]string{pkg, status, configType})
 		}
 
-		if pendingCount > 0 {
-			utils.Tip("Run 'nsm run' to enter shell with all packages")
+		if outputFormat == utils.FormatText {
+			utils.Info("\n📦 Packages in your Nix environment:")
+			fmt.Print(table.String())
+
+			utils.Info("\nTotal packages: %d", len(packages))
+			utils.Info("Configuration: %s", configType)
+
+			if pendingCount > 0 {
+				utils.Tip("Run 'nsm run' to enter shell with all packages")
+			}
+			return
 		}
+
+		fmt.Print(table.String())
 	},
 }
 
 func init() {
+	listCmd.Flags().String("format", "text", "output format: text, markdown, json, csv")
+	listCmd.Flags().Bool("no-color", false, "disable colored output")
 	rootCmd.AddCommand(listCmd)
 }
